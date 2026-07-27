@@ -103,6 +103,14 @@
             "description": "Get detailed status of a specific node"
         },
         {
+            "name": "get_apt_updates",
+            "description": "Get list of available APT package updates for a specific Proxmox node"
+        },
+        {
+            "name": "refresh_apt_repositories",
+            "description": "Refresh APT package repositories (apt-get update) for a specific Proxmox node"
+        },
+        {
             "name": "get_vms",
             "description": "List all virtual machines across the cluster"
         },
