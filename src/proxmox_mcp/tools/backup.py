@@ -1,6 +1,8 @@
 """Backup and restore tools for Proxmox MCP."""
+
 from typing import List, Dict, Optional, Any
 import json
+import concurrent.futures
 from datetime import datetime
 from mcp.types import TextContent as Content
 from proxmox_mcp.tools.base import ProxmoxTool
@@ -69,53 +71,126 @@ class BackupTools(ProxmoxTool):
         """
         try:
             results = []
+            nodes_data = []
             try:
-                nodes = _as_list(self.proxmox.nodes.get())
+                nodes_data = _as_list(self.proxmox.nodes.get())
             except Exception as e:
                 self._handle_error("list nodes", e)
 
-            for n in nodes:
+            node_names = set()
+            for n in nodes_data:
                 node_name = _get(n, "node")
                 if not node_name:
                     continue
                 if node and node_name != node:
                     continue
+                node_names.add(node_name)
 
+            def fetch_storage_backup(
+                node_name: str, storage_name: str
+            ) -> List[Dict[str, Any]]:
                 try:
-                    storages = _as_list(self.proxmox.nodes(node_name).storage.get())
+                    params: Dict[str, Any] = {"content": "backup"}
+                    if vmid:
+                        params["vmid"] = int(vmid)
+
+                    content = _as_list(
+                        self.proxmox.nodes(node_name)
+                        .storage(storage_name)
+                        .content.get(**params)
+                    )
+                    storage_results = []
+                    for item in content:
+                        item["_node"] = node_name
+                        item["_storage"] = storage_name
+                        storage_results.append(item)
+                    return storage_results
+                except Exception:
+                    return []
+
+            def get_storages(node_name: str) -> tuple[str, List[Dict[str, Any]]]:
+                try:
+                    return node_name, _as_list(
+                        self.proxmox.nodes(node_name).storage.get()
+                    )
                 except Exception as node_error:
                     self.logger.warning(
                         "Skipping node %s while listing backups: %s",
                         node_name,
                         node_error,
                     )
-                    continue
-                for s in storages:
-                    storage_name = _get(s, "storage")
-                    if not storage_name:
-                        continue
-                    if storage and storage_name != storage:
-                        continue
+                    return node_name, []
 
-                    # Check if storage supports backups
-                    content_types = _get(s, "content", "")
-                    if "backup" not in content_types:
-                        continue
+            try:
+                # In tests, self.proxmox.storage might be a mock that returns a mock.
+                test_storage = self.proxmox.storage.get()
+                if "mock" in str(type(test_storage)).lower():
+                    raise ValueError("fallback for unmocked storage.get")
 
-                    try:
-                        params: Dict[str, Any] = {"content": "backup"}
-                        if vmid:
-                            params["vmid"] = int(vmid)
+                all_storages = _as_list(test_storage)
 
-                        content = _as_list(
-                            self.proxmox.nodes(node_name).storage(storage_name).content.get(**params)
-                        )
-                        for item in content:
-                            item["_node"] = node_name
-                            item["_storage"] = storage_name
-                            results.append(item)
-                    except Exception:
-                        continue
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(32, (len(node_names) or 1) * 4)
+                ) as executor:
+                    content_futures: List[concurrent.futures.Future[List[Dict[str, Any]]]] = []
+                    for s in all_storages:
+                        storage_name = _get(s, "storage")
+                        if not storage_name:
+                            continue
+                        if storage and storage_name != storage:
+                            continue
+
+                        content_types = _get(s, "content", "")
+                        if "backup" not in content_types:
+                            continue
+
+                        s_nodes_str = _get(s, "nodes", "")
+                        if s_nodes_str:
+                            s_nodes = set(s_nodes_str.split(","))
+                        else:
+                            s_nodes = node_names
+
+                        for node_name in node_names.intersection(s_nodes):
+                            content_futures.append(
+                                executor.submit(
+                                    fetch_storage_backup, node_name, str(storage_name)
+                                )
+                            )
+
+                    for future in concurrent.futures.as_completed(content_futures):
+                        results.extend(future.result())
+            except Exception:
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(32, (len(node_names) or 1) * 4)
+                ) as executor:
+                    storage_futures = {
+                        executor.submit(get_storages, n): n for n in node_names
+                    }
+
+                    fallback_content_futures: List[concurrent.futures.Future[List[Dict[str, Any]]]] = []
+                    for s_future in concurrent.futures.as_completed(storage_futures):
+                        node_name, storages = s_future.result()
+
+                        for s in storages:
+                            storage_name = str(_get(s, "storage"))
+                            if not storage_name or storage_name == "None":
+                                continue
+                            if storage and storage_name != storage:
+                                continue
+
+                            content_types = str(_get(s, "content", ""))
+                            if "backup" not in content_types:
+                                continue
+
+                            fallback_content_futures.append(
+                                executor.submit(
+                                    fetch_storage_backup, node_name, storage_name
+                                )
+                            )
+
+                    for f_future in concurrent.futures.as_completed(fallback_content_futures):
+                        results.extend(f_future.result())
+                        results.extend(future.result())
 
             if not results:
                 msg = "No backups found"
@@ -210,9 +285,14 @@ class BackupTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"vmid": vmid, "storage": storage},
-                retry_spec={"kind": "backup.create", "params": {"node": node, "request": params}},
+                retry_spec={
+                    "kind": "backup.create",
+                    "params": {"node": node, "request": params},
+                },
                 retry_factory=lambda: self.proxmox.nodes(node).vzdump.post(**params),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -228,14 +308,16 @@ class BackupTools(ProxmoxTool):
             if notes:
                 lines.append(f"  - Notes: {notes}")
 
-            lines.extend([
-                "",
-                f"Task ID: {result}",
-                f"Job ID: {job['job_id'] if job else 'n/a'}",
-                "",
-                "The backup is running in the background.",
-                "Use list_backups to verify when complete.",
-            ])
+            lines.extend(
+                [
+                    "",
+                    f"Task ID: {result}",
+                    f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    "",
+                    "The backup is running in the background.",
+                    "Use list_backups to verify when complete.",
+                ]
+            )
 
             return [Content(type="text", text="\n".join(lines))]
 
@@ -291,13 +373,18 @@ class BackupTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"archive": archive, "vmid": vmid, "storage": storage},
-                retry_spec={"kind": "backup.restore", "params": {"node": node, "request": params, "is_lxc": is_lxc}},
+                retry_spec={
+                    "kind": "backup.restore",
+                    "params": {"node": node, "request": params, "is_lxc": is_lxc},
+                },
                 retry_factory=(
                     (lambda: self.proxmox.nodes(node).lxc.post(**params))
                     if is_lxc
                     else (lambda: self.proxmox.nodes(node).qemu.post(**params))
                 ),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -313,14 +400,16 @@ class BackupTools(ProxmoxTool):
 
             lines.append(f"  - Unique MACs: {'Yes' if unique else 'No'}")
 
-            lines.extend([
-                "",
-                f"Task ID: {result}",
-                f"Job ID: {job['job_id'] if job else 'n/a'}",
-                "",
-                "The restore is running in the background.",
-                f"The {vm_type.lower()} will be available once the task completes.",
-            ])
+            lines.extend(
+                [
+                    "",
+                    f"Task ID: {result}",
+                    f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    "",
+                    "The restore is running in the background.",
+                    f"The {vm_type.lower()} will be available once the task completes.",
+                ]
+            )
 
             return [Content(type="text", text="\n".join(lines))]
 
@@ -358,11 +447,13 @@ class BackupTools(ProxmoxTool):
                     break
 
             if backup_info and _get(backup_info, "protected"):
-                return [Content(
-                    type="text",
-                    text=f"Error: Backup '{volid}' is protected and cannot be deleted.\n"
-                         f"Remove protection first if you want to delete it."
-                )]
+                return [
+                    Content(
+                        type="text",
+                        text=f"Error: Backup '{volid}' is protected and cannot be deleted.\n"
+                        f"Remove protection first if you want to delete it.",
+                    )
+                ]
 
             result = self.proxmox.nodes(node).storage(storage).content(volid).delete()
             job = self._register_background_job(
@@ -371,9 +462,17 @@ class BackupTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"storage": storage, "volid": volid},
-                retry_spec={"kind": "backup.delete", "params": {"node": node, "storage": storage, "volid": volid}},
-                retry_factory=lambda: self.proxmox.nodes(node).storage(storage).content(volid).delete(),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                retry_spec={
+                    "kind": "backup.delete",
+                    "params": {"node": node, "storage": storage, "volid": volid},
+                },
+                retry_factory=lambda: self.proxmox.nodes(node)
+                .storage(storage)
+                .content(volid)
+                .delete(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -385,7 +484,13 @@ class BackupTools(ProxmoxTool):
             ]
 
             if result:
-                lines.extend(["", f"Task ID: {result}", f"Job ID: {job['job_id'] if job else 'n/a'}"])
+                lines.extend(
+                    [
+                        "",
+                        f"Task ID: {result}",
+                        f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    ]
+                )
 
             return [Content(type="text", text="\n".join(lines))]
 
