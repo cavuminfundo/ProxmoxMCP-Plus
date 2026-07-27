@@ -210,3 +210,59 @@ class NodeTools(ProxmoxTool):
             return self._format_response({"node": node, "status": "task_started", "upid": upid}, "apt_refresh")
         except Exception as e:
             self._handle_error(f"refresh APT repositories for node {node}", e)
+
+    def get_node_disks(self, node: str) -> List[Content]:
+        """List physical disks, partitions, and health info on a Proxmox node."""
+        try:
+            disks = self.proxmox.nodes(node).disks.list.get()
+            return self._format_response((node, disks), "node_disks")
+        except Exception as e:
+            self._handle_error(f"get disks for node {node}", e)
+
+    def get_smart_status(self, node: str, disk: str) -> List[Content]:
+        """Get SMART attributes, health status, and wearout info for a specific disk."""
+        try:
+            smart = self.proxmox.nodes(node).disks.smart.get(disk=disk)
+            return self._format_response((node, disk, smart), "smart_status")
+        except Exception as e:
+            self._handle_error(f"get SMART status for disk {disk} on node {node}", e)
+
+    def get_node_journal(self, node: str, last_lines: int = 100) -> List[Content]:
+        """Get recent systemd journal logs from a Proxmox node."""
+        try:
+            journal = self.proxmox.nodes(node).journal.get(last_lines=last_lines)
+            return self._format_response((node, journal), "node_journal")
+        except Exception as e:
+            self._handle_error(f"get journal logs for node {node}", e)
+
+    def get_node_services(self, node: str) -> List[Content]:
+        """List systemd services and their running status on a Proxmox node."""
+        try:
+            services = self.proxmox.nodes(node).services.get()
+            return self._format_response((node, services), "node_services")
+        except Exception as e:
+            self._handle_error(f"get services for node {node}", e)
+
+    def restart_node_service(self, node: str, service: str) -> List[Content]:
+        """Restart a specific systemd service on a Proxmox node."""
+        try:
+            res = self.proxmox.nodes(node).services(service).restart.post()
+            return self._format_response({"node": node, "service": service, "status": "restarted", "result": res}, "node_service_restart")
+        except Exception as e:
+            self._handle_error(f"restart service {service} on node {node}", e)
+
+    def get_node_network(self, node: str) -> List[Content]:
+        """Get network interfaces configuration and status on a Proxmox node."""
+        try:
+            net = self.proxmox.nodes(node).network.get()
+            return self._format_response((node, net), "node_network")
+        except Exception as e:
+            self._handle_error(f"get network for node {node}", e)
+
+    def get_node_tasks(self, node: str, limit: int = 50) -> List[Content]:
+        """Get history of active and recent tasks on a Proxmox node."""
+        try:
+            tasks = self.proxmox.nodes(node).tasks.get(limit=limit)
+            return self._format_response((node, tasks), "node_tasks")
+        except Exception as e:
+            self._handle_error(f"get tasks for node {node}", e)
