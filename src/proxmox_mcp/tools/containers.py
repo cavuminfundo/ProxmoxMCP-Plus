@@ -268,7 +268,7 @@ class ContainerTools(ProxmoxTool):
                 if base_cpu is not None:
                     try:
                         rec["cpu_pct"] = round(float(base_cpu) * 100.0, 2)
-                    except Exception:
+                    except (ValueError, TypeError):
                         pass
                 if base_mem is not None:
                     try:
