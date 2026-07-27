@@ -31,6 +31,13 @@ from proxmox_mcp.tools.definitions import (
     GET_NODE_STATUS_DESC,
     GET_APT_UPDATES_DESC,
     REFRESH_APT_REPOSITORIES_DESC,
+    GET_NODE_DISKS_DESC,
+    GET_SMART_STATUS_DESC,
+    GET_NODE_JOURNAL_DESC,
+    GET_NODE_SERVICES_DESC,
+    RESTART_NODE_SERVICE_DESC,
+    GET_NODE_NETWORK_DESC,
+    GET_NODE_TASKS_DESC,
     GET_STORAGE_DESC,
     GET_VMS_DESC,
     GET_VM_CONFIG_DESC,
@@ -195,6 +202,52 @@ class CoreToolsPlugin(RegistryPluginBase):
             node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
         ) -> Any:
             return self._wrap_sync(server, "refresh_apt_repositories", server.node_tools.refresh_apt_repositories)(node)
+
+        @server.mcp.tool(description=GET_NODE_DISKS_DESC)
+        def get_node_disks(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_disks", server.node_tools.get_node_disks)(node)
+
+        @server.mcp.tool(description=GET_SMART_STATUS_DESC)
+        def get_smart_status(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            disk: Annotated[str, Field(description="Disk device identifier (e.g. '/dev/sda', 'nvme0n1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "get_smart_status", server.node_tools.get_smart_status)(node, disk)
+
+        @server.mcp.tool(description=GET_NODE_JOURNAL_DESC)
+        def get_node_journal(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            last_lines: Annotated[int, Field(description="Number of log lines (default: 100)", ge=1, le=1000, default=100)] = 100
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_journal", server.node_tools.get_node_journal)(node, last_lines=last_lines)
+
+        @server.mcp.tool(description=GET_NODE_SERVICES_DESC)
+        def get_node_services(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_services", server.node_tools.get_node_services)(node)
+
+        @server.mcp.tool(description=RESTART_NODE_SERVICE_DESC)
+        def restart_node_service(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            service: Annotated[str, Field(description="Service name (e.g. 'pve-cluster', 'pveproxy')")]
+        ) -> Any:
+            return self._wrap_sync(server, "restart_node_service", server.node_tools.restart_node_service)(node, service)
+
+        @server.mcp.tool(description=GET_NODE_NETWORK_DESC)
+        def get_node_network(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_network", server.node_tools.get_node_network)(node)
+
+        @server.mcp.tool(description=GET_NODE_TASKS_DESC)
+        def get_node_tasks(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            limit: Annotated[int, Field(description="Maximum task entries (default: 50)", ge=1, le=500, default=50)] = 50
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_tasks", server.node_tools.get_node_tasks)(node, limit=limit)
 
         @server.mcp.tool(description=GET_STORAGE_DESC)
         def get_storage() -> Any:

@@ -59,6 +59,46 @@ node* - Name/ID of node to query (e.g. 'proxmox1')
 Example:
 {"status": "task_started", "upid": "UPID:proxmox1:000123..."}"""
 
+GET_NODE_DISKS_DESC = """List physical disks, partitions, size, and wearout status on a Proxmox node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')"""
+
+GET_SMART_STATUS_DESC = """Get SMART health attributes, temperature, and wearout info for a specific disk on a node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+disk* - Disk device identifier (e.g. '/dev/sda', 'nvme0n1')"""
+
+GET_NODE_JOURNAL_DESC = """Get recent systemd journal logs from a Proxmox host node for troubleshooting.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+last_lines - Number of log lines to retrieve (default: 100)"""
+
+GET_NODE_SERVICES_DESC = """List systemd services and their active running status on a Proxmox host node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')"""
+
+RESTART_NODE_SERVICE_DESC = """Restart a specific systemd service on a Proxmox host node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+service* - Service name (e.g. 'pve-cluster', 'pvedaemon', 'pveproxy')"""
+
+GET_NODE_NETWORK_DESC = """Get network interfaces configuration (bridges, bonds, IPs) for a Proxmox node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')"""
+
+GET_NODE_TASKS_DESC = """Get history of active and recent tasks/operations executed on a Proxmox host node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+limit - Maximum task entries to retrieve (default: 50)"""
+
+
 SET_CONTAINER_DESCRIPTION_DESC = """Set or update the description (Notes) field of an LXC container.
 
 Parameters:
@@ -78,6 +118,7 @@ description* - New description text (can be multi-line or Markdown)
 
 Example:
 set_vm_description node='pve' vmid='100' description='Database server'"""
+
 
 
 # VM tool descriptions

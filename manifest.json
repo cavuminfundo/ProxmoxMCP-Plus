@@ -111,6 +111,34 @@
             "description": "Refresh APT package repositories (apt-get update) for a specific Proxmox node"
         },
         {
+            "name": "get_node_disks",
+            "description": "List physical disks, partitions, size, and wearout status on a Proxmox node"
+        },
+        {
+            "name": "get_smart_status",
+            "description": "Get SMART health attributes, temperature, and wearout info for a disk"
+        },
+        {
+            "name": "get_node_journal",
+            "description": "Get recent systemd journal logs from a Proxmox host node"
+        },
+        {
+            "name": "get_node_services",
+            "description": "List systemd services and running status on a Proxmox node"
+        },
+        {
+            "name": "restart_node_service",
+            "description": "Restart a systemd service on a Proxmox node"
+        },
+        {
+            "name": "get_node_network",
+            "description": "Get network interfaces configuration for a Proxmox node"
+        },
+        {
+            "name": "get_node_tasks",
+            "description": "Get history of active and recent tasks executed on a Proxmox node"
+        },
+        {
             "name": "get_vms",
             "description": "List all virtual machines across the cluster"
         },
