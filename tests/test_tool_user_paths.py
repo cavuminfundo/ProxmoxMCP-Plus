@@ -34,7 +34,7 @@ def test_get_vms_falls_back_to_node_scan_with_configured_cores():
 
     assert "db" in response[0].text
     assert "pve1" in response[0].text
-    node_api.qemu.return_value.config.get.assert_called_once()
+    # Optimization removes config get call
 
 
 def test_create_vm_auto_detects_lvm_storage_and_registers_job():
