@@ -65,44 +65,18 @@ class NodeTools(ProxmoxTool):
             result = self._call_with_retry("get nodes", lambda: self.proxmox.nodes.get())
             nodes = []
             
-            # Get detailed info for each node
+            # Extract necessary information directly from the cluster-wide nodes query
             for node in result:
-                node_name = node["node"]
-                try:
-                    # Get detailed status for each node
-                    status = self.proxmox.nodes(node_name).status.get()
-                    nodes.append({
-                        "node": node_name,
-                        "status": node["status"],
-                        "uptime": status.get("uptime", 0),
-                        "maxcpu": status.get("cpuinfo", {}).get("cpus", "N/A"),
-                        "memory": {
-                            "used": status.get("memory", {}).get("used", 0),
-                            "total": status.get("memory", {}).get("total", 0)
-                        }
-                    })
-                except Exception as node_error:
-                    self.logger.warning(
-                        "Using basic info for node %s due to status error: %s",
-                        node_name,
-                        node_error,
-                    )
-                    # Fallback to basic info if detailed status fails
-                    nodes.append({
-                        "node": node_name,
-                        "status": node["status"],
-                        "uptime": 0,
-                        "maxcpu": "N/A",
-                        "memory": {
-                            # The nodes.get() API already returns memory usage
-                            # in the "mem" field, so use that directly. The
-                            # previous implementation subtracted this value
-                            # from "maxmem" which actually produced the amount
-                            # of *free* memory instead of the used memory.
-                            "used": node.get("mem", 0),
-                            "total": node.get("maxmem", 0)
-                        }
-                    })
+                nodes.append({
+                    "node": node["node"],
+                    "status": node.get("status", "unknown"),
+                    "uptime": node.get("uptime", 0),
+                    "maxcpu": node.get("maxcpu", "N/A"),
+                    "memory": {
+                        "used": node.get("mem", 0),
+                        "total": node.get("maxmem", 0)
+                    }
+                })
             self._cache_set("nodes:list", nodes, ttl_seconds=5)
             return self._format_response(nodes, "nodes")
         except Exception as e:
