@@ -29,6 +29,8 @@ from proxmox_mcp.tools.definitions import (
     GET_CONTAINERS_DESC,
     GET_NODES_DESC,
     GET_NODE_STATUS_DESC,
+    GET_APT_UPDATES_DESC,
+    REFRESH_APT_REPOSITORIES_DESC,
     GET_STORAGE_DESC,
     GET_VMS_DESC,
     GET_VM_CONFIG_DESC,
@@ -181,6 +183,18 @@ class CoreToolsPlugin(RegistryPluginBase):
             node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'pve1', 'proxmox-node2')")]
         ) -> Any:
             return self._wrap_sync(server, "get_node_status", server.node_tools.get_node_status)(node)
+
+        @server.mcp.tool(description=GET_APT_UPDATES_DESC)
+        def get_apt_updates(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "get_apt_updates", server.node_tools.get_apt_updates)(node)
+
+        @server.mcp.tool(description=REFRESH_APT_REPOSITORIES_DESC)
+        def refresh_apt_repositories(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "refresh_apt_repositories", server.node_tools.refresh_apt_repositories)(node)
 
         @server.mcp.tool(description=GET_STORAGE_DESC)
         def get_storage() -> Any:
