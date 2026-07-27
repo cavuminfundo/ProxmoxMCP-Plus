@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 import threading
@@ -11,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 
 _PROGRESS_RE = re.compile(r"(?P<value>\d{1,3})%")
@@ -125,8 +128,8 @@ class JobStore:
     def __del__(self) -> None:
         try:
             self.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Error closing JobStore during garbage collection: %s", e)
 
     def register_retry_handler(self, kind: str, handler: Callable[[dict[str, Any]], Any]) -> None:
         self._retry_handlers[kind] = handler
