@@ -198,33 +198,17 @@ class VMTools(ProxmoxTool):
 
                 for vm in vms:
                     vmid = vm["vmid"]
-                    # Get VM config for CPU cores
-                    try:
-                        config = self.proxmox.nodes(node_name).qemu(vmid).config.get()
-                        result.append({
-                            "vmid": vmid,
-                            "name": vm["name"],
-                            "status": vm["status"],
-                            "node": node_name,
-                            "cpus": config.get("cores", "N/A"),
-                            "memory": {
-                                "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
-                    except Exception:
-                        # Fallback if can't get config
-                        result.append({
-                            "vmid": vmid,
-                            "name": vm["name"],
-                            "status": vm["status"],
-                            "node": node_name,
-                            "cpus": "N/A",
-                            "memory": {
-                                "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
+                    result.append({
+                        "vmid": vmid,
+                        "name": vm.get("name", f"VM-{vmid}"),
+                        "status": vm.get("status", "unknown"),
+                        "node": node_name,
+                        "cpus": vm.get("maxcpu", vm.get("cpus", "N/A")),
+                        "memory": {
+                            "used": vm.get("mem", 0),
+                            "total": vm.get("maxmem", 0)
+                        }
+                    })
         except Exception as e:
             self._handle_error("get VMs", e)
 
