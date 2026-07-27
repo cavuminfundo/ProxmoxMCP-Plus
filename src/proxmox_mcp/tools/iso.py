@@ -1,6 +1,7 @@
 """ISO and template management tools for Proxmox MCP."""
 from typing import List, Dict, Optional, Any
 import json
+import concurrent.futures
 from mcp.types import TextContent as Content
 from proxmox_mcp.tools.base import ProxmoxTool
 
@@ -62,46 +63,74 @@ class ISOTools(ProxmoxTool):
                 self._handle_error("list nodes", e)
             return results
 
+        node_names = []
         for n in nodes:
             node_name = _get(n, "node")
             if not node_name:
                 continue
             if node and node_name != node:
                 continue
+            node_names.append(node_name)
 
+        if not node_names:
+            return results
+
+        def get_storages(n_name: str) -> tuple[str, List[Dict[str, Any]]]:
             try:
-                storages = _as_list(self.proxmox.nodes(node_name).storage.get())
+                return n_name, _as_list(self.proxmox.nodes(n_name).storage.get())
             except Exception as node_error:
                 self.logger.warning(
                     "Skipping node %s while listing storage content: %s",
-                    node_name,
+                    n_name,
                     node_error,
                 )
-                continue
-            for s in storages:
-                storage_name = _get(s, "storage")
-                if not storage_name:
-                    continue
-                if storage and storage_name != storage:
-                    continue
+                return n_name, []
 
-                # Check if storage supports this content type
-                content_types = _get(s, "content", "")
-                if content_type not in content_types:
-                    continue
-
-                try:
-                    content = _as_list(
-                        self.proxmox.nodes(node_name).storage(storage_name).content.get(
-                            content=content_type
-                        )
+        def fetch_storage_content(n_name: str, s_name: str) -> List[Dict[str, Any]]:
+            try:
+                content = _as_list(
+                    self.proxmox.nodes(n_name).storage(s_name).content.get(
+                        content=content_type
                     )
-                    for item in content:
-                        item["_node"] = node_name
-                        item["_storage"] = storage_name
-                        results.append(item)
-                except Exception:
-                    continue
+                )
+                res = []
+                for item in content:
+                    item["_node"] = n_name
+                    item["_storage"] = s_name
+                    res.append(item)
+                return res
+            except Exception:
+                return []
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(32, (len(node_names) or 1) * 4)
+        ) as executor:
+            storage_futures = {
+                executor.submit(get_storages, n): n for n in node_names
+            }
+
+            content_futures = []
+            for s_future in concurrent.futures.as_completed(storage_futures):
+                n_name, storages = s_future.result()
+
+                for s in storages:
+                    storage_name = _get(s, "storage")
+                    if not storage_name:
+                        continue
+                    if storage and storage_name != storage:
+                        continue
+
+                    # Check if storage supports this content type
+                    content_types = _get(s, "content", "")
+                    if content_type not in content_types:
+                        continue
+
+                    content_futures.append(
+                        executor.submit(fetch_storage_content, n_name, storage_name)
+                    )
+
+            for future in concurrent.futures.as_completed(content_futures):
+                results.extend(future.result())
 
         return results
 
