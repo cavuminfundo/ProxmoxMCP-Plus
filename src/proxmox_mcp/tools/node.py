@@ -211,6 +211,21 @@ class NodeTools(ProxmoxTool):
         except Exception as e:
             self._handle_error(f"refresh APT repositories for node {node}", e)
 
+    def upgrade_apt_packages(self, node: str) -> List[Content]:
+        """Trigger an APT package upgrade via Proxmox API on a node.
+
+        Args:
+            node: Name/ID of node to upgrade (e.g. 'proxmox1')
+
+        Returns:
+            List of Content objects containing task UPID or status.
+        """
+        try:
+            upid = self.proxmox.nodes(node).apt.upgrade.post()
+            return self._format_response({"node": node, "status": "task_started", "upid": upid}, "apt_upgrade")
+        except Exception as e:
+            self._handle_error(f"upgrade APT packages for node {node}", e)
+
     def get_node_disks(self, node: str) -> List[Content]:
         """List physical disks, partitions, and health info on a Proxmox node."""
         try:

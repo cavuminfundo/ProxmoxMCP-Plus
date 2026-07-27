@@ -111,6 +111,10 @@
             "description": "Refresh APT package repositories (apt-get update) for a specific Proxmox node"
         },
         {
+            "name": "upgrade_apt_packages",
+            "description": "Trigger an APT package upgrade (apt-get dist-upgrade) via Proxmox PVE API for a node"
+        },
+        {
             "name": "get_node_disks",
             "description": "List physical disks, partitions, size, and wearout status on a Proxmox node"
         },

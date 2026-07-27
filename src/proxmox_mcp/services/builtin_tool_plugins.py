@@ -31,6 +31,7 @@ from proxmox_mcp.tools.definitions import (
     GET_NODE_STATUS_DESC,
     GET_APT_UPDATES_DESC,
     REFRESH_APT_REPOSITORIES_DESC,
+    UPGRADE_APT_PACKAGES_DESC,
     GET_NODE_DISKS_DESC,
     GET_SMART_STATUS_DESC,
     GET_NODE_JOURNAL_DESC,
@@ -202,6 +203,12 @@ class CoreToolsPlugin(RegistryPluginBase):
             node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")]
         ) -> Any:
             return self._wrap_sync(server, "refresh_apt_repositories", server.node_tools.refresh_apt_repositories)(node)
+
+        @server.mcp.tool(description=UPGRADE_APT_PACKAGES_DESC)
+        def upgrade_apt_packages(
+            node: Annotated[str, Field(description="Name/ID of node to upgrade (e.g. 'proxmox1')")]
+        ) -> Any:
+            return self._wrap_sync(server, "upgrade_apt_packages", server.node_tools.upgrade_apt_packages)(node)
 
         @server.mcp.tool(description=GET_NODE_DISKS_DESC)
         def get_node_disks(

@@ -59,6 +59,14 @@ node* - Name/ID of node to query (e.g. 'proxmox1')
 Example:
 {"status": "task_started", "upid": "UPID:proxmox1:000123..."}"""
 
+UPGRADE_APT_PACKAGES_DESC = """Trigger an APT package upgrade (apt-get dist-upgrade) via Proxmox PVE API for a node.
+
+Parameters:
+node* - Name/ID of node to upgrade (e.g. 'proxmox1')
+
+Example:
+{"status": "task_started", "upid": "UPID:proxmox1:000123..."}"""
+
 GET_NODE_DISKS_DESC = """List physical disks, partitions, size, and wearout status on a Proxmox node.
 
 Parameters:
