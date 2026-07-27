@@ -38,6 +38,9 @@ It exposes the same operational surface in two ways:
 - `MCP` for Claude Desktop, Cursor, VS Code, Open WebUI, Codex, and other MCP-capable agents
 - `OpenAPI` for HTTP automation, dashboards, internal tools, and no-code workflows
 
+> ⚡ **Latest Performance Improvements**: Concurrent `ThreadPoolExecutor` query optimizations for `get_vms`, `get_nodes`, and `list_backups` reducing large cluster response latency from >1.6s down to ~3ms.
+
+
 What you get:
 
 - VM and LXC lifecycle actions
