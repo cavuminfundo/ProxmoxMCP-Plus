@@ -180,3 +180,33 @@ class NodeTools(ProxmoxTool):
                 break
 
             self._handle_error(f"get status for node {node}", e)
+
+    def get_apt_updates(self, node: str) -> List[Content]:
+        """Get list of available APT package updates for a specific node.
+
+        Args:
+            node: Name/ID of node to query (e.g. 'proxmox1')
+
+        Returns:
+            List of Content objects containing available APT package updates.
+        """
+        try:
+            updates = self.proxmox.nodes(node).apt.update.get()
+            return self._format_response((node, updates), "apt_updates")
+        except Exception as e:
+            self._handle_error(f"get APT updates for node {node}", e)
+
+    def refresh_apt_repositories(self, node: str) -> List[Content]:
+        """Trigger an APT package repository refresh (apt-get update) on a node.
+
+        Args:
+            node: Name/ID of node to query (e.g. 'proxmox1')
+
+        Returns:
+            List of Content objects containing task UPID or status.
+        """
+        try:
+            upid = self.proxmox.nodes(node).apt.update.post()
+            return self._format_response({"node": node, "status": "task_started", "upid": upid}, "apt_refresh")
+        except Exception as e:
+            self._handle_error(f"refresh APT repositories for node {node}", e)
