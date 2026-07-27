@@ -59,6 +59,26 @@ node* - Name/ID of node to query (e.g. 'proxmox1')
 Example:
 {"status": "task_started", "upid": "UPID:proxmox1:000123..."}"""
 
+SET_CONTAINER_DESCRIPTION_DESC = """Set or update the description (Notes) field of an LXC container.
+
+Parameters:
+node* - Proxmox node name (e.g. 'pve')
+vmid* - Container ID (e.g. '101')
+description* - New description text (can be multi-line or Markdown)
+
+Example:
+set_container_description node='pve' vmid='101' description='Web server'"""
+
+SET_VM_DESCRIPTION_DESC = """Set or update the description (Notes) field of a QEMU virtual machine.
+
+Parameters:
+node* - Proxmox node name (e.g. 'pve')
+vmid* - VM ID number (e.g. '100')
+description* - New description text (can be multi-line or Markdown)
+
+Example:
+set_vm_description node='pve' vmid='100' description='Database server'"""
+
 
 # VM tool descriptions
 GET_VMS_DESC = """List all virtual machines across the cluster with their status and resource usage.
