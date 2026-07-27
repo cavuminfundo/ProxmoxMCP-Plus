@@ -252,7 +252,7 @@ class ContainerTools(ProxmoxTool):
                 try:
                     if vmid_val is not None:
                         vmid_int = int(vmid_val)
-                except Exception:
+                except (ValueError, TypeError):
                     vmid_int = None
 
                 rec: Dict = {
@@ -273,7 +273,7 @@ class ContainerTools(ProxmoxTool):
                 if base_mem is not None:
                     try:
                         rec["mem_bytes"] = int(base_mem)
-                    except Exception:
+                    except (ValueError, TypeError):
                         pass
                 if base_maxmem is not None:
                     try:
@@ -281,7 +281,7 @@ class ContainerTools(ProxmoxTool):
                         rec["maxmem_bytes"] = maxmem_int
                         mem_int = int(rec.get("mem_bytes") or 0)
                         rec["mem_pct"] = round((mem_int / maxmem_int * 100.0), 2) if maxmem_int > 0 else None
-                    except Exception:
+                    except (ValueError, TypeError):
                         pass
                 if base_maxcpu is not None:
                     rec["cores"] = base_maxcpu
@@ -309,7 +309,7 @@ class ContainerTools(ProxmoxTool):
                         if cfg_mem is not None:
                             try:
                                 memory_mib = int(cfg_mem)
-                            except Exception:
+                            except (ValueError, TypeError):
                                 memory_mib = 0
                         else:
                             memory_mib = 0
@@ -322,22 +322,19 @@ class ContainerTools(ProxmoxTool):
                             cores = int(cfg_cores)
                         elif cfg_cpulimit is not None and float(cfg_cpulimit) > 0:
                             cores = float(cfg_cpulimit)
-                    except Exception:
+                    except (ValueError, TypeError):
                         cores = None
 
                     # --- NEW: fallbacks for stopped / missing maxmem ---
                     status_str = str(_get(raw_status, "status") or _get(ct, "status") or "").lower()
                     
                     if status_str == "stopped":
-                        try:
-                            mem_bytes = 0
-                        except Exception:
-                            mem_bytes = 0
+                        mem_bytes = 0
 
                     if (not maxmem_bytes or int(maxmem_bytes) == 0) and memory_mib and int(memory_mib) > 0:
                         try:
                             maxmem_bytes = int(memory_mib) * 1024 * 1024
-                        except Exception:
+                        except (ValueError, TypeError):
                             maxmem_bytes = 0
 
                     # RRD fallback if zeros
@@ -352,7 +349,7 @@ class ContainerTools(ProxmoxTool):
                             if memory_mib == 0:
                                 try:
                                     memory_mib = int(round(maxmem_bytes / (1024 * 1024)))
-                                except Exception:
+                                except (ValueError, TypeError):
                                     memory_mib = 0
 
                     rec.update({
@@ -405,7 +402,7 @@ class ContainerTools(ProxmoxTool):
                 node, vmid_s = tok.split(":", 1)
                 try:
                     vmid = int(vmid_s)
-                except Exception:
+                except (ValueError, TypeError):
                     continue
                 for n, ct in inventory:
                     if n == node and int(_get(ct, "vmid", -1)) == vmid:
