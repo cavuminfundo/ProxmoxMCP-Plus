@@ -16,6 +16,7 @@ The logging system supports:
 """
 import logging
 import os
+import sys
 from proxmox_mcp.config.models import LoggingConfig
 
 def setup_logging(config: LoggingConfig) -> logging.Logger:
@@ -77,9 +78,9 @@ def setup_logging(config: LoggingConfig) -> logging.Logger:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(getattr(logging, config.level.upper()))
             handlers.append(file_handler)
-        except Exception:
+        except (OSError, IOError) as e:
             # Fallback for restricted environments
-            pass
+            print(f"Warning: Failed to setup file logging: {e}", file=sys.stderr)
     
     # Console handler for errors only
     console_handler = logging.StreamHandler()
