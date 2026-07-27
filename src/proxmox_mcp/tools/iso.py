@@ -51,7 +51,10 @@ class ISOTools(ProxmoxTool):
         return [Content(type="text", text=f"Error: {action} - {str(e)}")]
 
     def _get_storage_content(
-        self, content_type: str, node: Optional[str] = None, storage: Optional[str] = None
+        self,
+        content_type: str,
+        node: Optional[str] = None,
+        storage: Optional[str] = None,
     ) -> List[Dict]:
         """Get storage content filtered by type across nodes/storages."""
         results: List[Dict[str, Any]] = []
@@ -92,9 +95,9 @@ class ISOTools(ProxmoxTool):
 
                 try:
                     content = _as_list(
-                        self.proxmox.nodes(node_name).storage(storage_name).content.get(
-                            content=content_type
-                        )
+                        self.proxmox.nodes(node_name)
+                        .storage(storage_name)
+                        .content.get(content=content_type)
                     )
                     for item in content:
                         item["_node"] = node_name
@@ -194,7 +197,9 @@ class ISOTools(ProxmoxTool):
                 lines.append(f"     Volume ID: {volid}")
                 lines.append("")
 
-            lines.append("Use the Volume ID with create_container's ostemplate parameter.")
+            lines.append(
+                "Use the Volume ID with create_container's ostemplate parameter."
+            )
 
             return [Content(type="text", text="\n".join(lines).rstrip())]
 
@@ -234,16 +239,25 @@ class ISOTools(ProxmoxTool):
                 params["checksum"] = checksum
                 params["checksum-algorithm"] = checksum_algorithm
 
-            result = self.proxmox.nodes(node).storage(storage)("download-url").post(**params)
+            result = (
+                self.proxmox.nodes(node).storage(storage)("download-url").post(**params)
+            )
             job = self._register_background_job(
                 tool_name="download_iso",
                 summary=f"Download ISO {filename} to {storage}@{node}",
                 node=node,
                 upid=result,
                 metadata={"storage": storage, "filename": filename, "url": url},
-                retry_spec={"kind": "iso.download", "params": {"node": node, "storage": storage, "request": params}},
-                retry_factory=lambda: self.proxmox.nodes(node).storage(storage)("download-url").post(**params),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                retry_spec={
+                    "kind": "iso.download",
+                    "params": {"node": node, "storage": storage, "request": params},
+                },
+                retry_factory=lambda: self.proxmox.nodes(node)
+                .storage(storage)("download-url")
+                .post(**params),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -257,14 +271,16 @@ class ISOTools(ProxmoxTool):
             if checksum:
                 lines.append(f"  - Checksum: {checksum_algorithm.upper()}")
 
-            lines.extend([
-                "",
-                f"Task ID: {result}",
-                f"Job ID: {job['job_id'] if job else 'n/a'}",
-                "",
-                "The download is running in the background.",
-                "Use list_isos to verify when complete.",
-            ])
+            lines.extend(
+                [
+                    "",
+                    f"Task ID: {result}",
+                    f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    "",
+                    "The download is running in the background.",
+                    "Use list_isos to verify when complete.",
+                ]
+            )
 
             return [Content(type="text", text="\n".join(lines))]
 
@@ -304,10 +320,12 @@ class ISOTools(ProxmoxTool):
                         break
 
                 if not volid:
-                    return [Content(
-                        type="text",
-                        text=f"Error: Could not find '{filename}' in {storage} on {node}"
-                    )]
+                    return [
+                        Content(
+                            type="text",
+                            text=f"Error: Could not find '{filename}' in {storage} on {node}",
+                        )
+                    ]
             else:
                 volid = filename
 
@@ -319,9 +337,17 @@ class ISOTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"storage": storage, "volid": volid},
-                retry_spec={"kind": "iso.delete", "params": {"node": node, "storage": storage, "volid": volid}},
-                retry_factory=lambda: self.proxmox.nodes(node).storage(storage).content(volid).delete(),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                retry_spec={
+                    "kind": "iso.delete",
+                    "params": {"node": node, "storage": storage, "volid": volid},
+                },
+                retry_factory=lambda: self.proxmox.nodes(node)
+                .storage(storage)
+                .content(volid)
+                .delete(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -333,7 +359,13 @@ class ISOTools(ProxmoxTool):
             ]
 
             if result:
-                lines.extend(["", f"Task ID: {result}", f"Job ID: {job['job_id'] if job else 'n/a'}"])
+                lines.extend(
+                    [
+                        "",
+                        f"Task ID: {result}",
+                        f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    ]
+                )
 
             return [Content(type="text", text="\n".join(lines))]
 

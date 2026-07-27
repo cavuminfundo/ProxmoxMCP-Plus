@@ -5,7 +5,9 @@ import pytest
 
 
 def _reload_run_real_e2e():
-    module_path = Path(__file__).resolve().parents[1] / "tests" / "scripts" / "run_real_e2e.py"
+    module_path = (
+        Path(__file__).resolve().parents[1] / "tests" / "scripts" / "run_real_e2e.py"
+    )
     spec = importlib.util.spec_from_file_location("run_real_e2e_for_test", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -53,4 +55,6 @@ def test_assert_config_is_live_ready_blocks_local_default(monkeypatch):
         proxmox = Proxmox()
 
     with pytest.raises(RuntimeError, match="Refusing to run live e2e"):
-        run_real_e2e.assert_config_is_live_ready(run_real_e2e.DEFAULT_CONFIG_PATH, Config())
+        run_real_e2e.assert_config_is_live_ready(
+            run_real_e2e.DEFAULT_CONFIG_PATH, Config()
+        )

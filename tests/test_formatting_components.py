@@ -22,7 +22,9 @@ def test_create_table_handles_title_and_multiline_cells(monkeypatch):
 def test_progress_and_resource_usage_select_metric_colors(monkeypatch):
     monkeypatch.setattr(ProxmoxTheme, "USE_COLORS", False)
 
-    assert ProxmoxComponents.create_progress_bar(50, 100, width=10) == "#####----- 50.0%"
+    assert (
+        ProxmoxComponents.create_progress_bar(50, 100, width=10) == "#####----- 50.0%"
+    )
     assert ProxmoxComponents.create_progress_bar(5, 0, width=4) == "---- 0.0%"
 
     usage = ProxmoxComponents.create_resource_usage(1024, 2048, "Memory", "[memory]")
@@ -49,7 +51,10 @@ def test_color_helpers_cover_status_resource_and_metric_branches(monkeypatch):
     monkeypatch.setattr(ProxmoxTheme, "USE_COLORS", True)
 
     assert ProxmoxColors.colorize("ok", ProxmoxColors.GREEN) == "\033[32mok\033[0m"
-    assert ProxmoxColors.colorize("ok", ProxmoxColors.GREEN, ProxmoxColors.BOLD) == "\033[1m\033[32mok\033[0m"
+    assert (
+        ProxmoxColors.colorize("ok", ProxmoxColors.GREEN, ProxmoxColors.BOLD)
+        == "\033[1m\033[32mok\033[0m"
+    )
     assert ProxmoxColors.status_color("running") == ProxmoxColors.GREEN
     assert ProxmoxColors.status_color("stopped") == ProxmoxColors.RED
     assert ProxmoxColors.status_color("warning") == ProxmoxColors.YELLOW
@@ -73,7 +78,10 @@ def test_formatters_cover_common_output_shapes(monkeypatch):
     assert ProxmoxFormatters.format_status("online") == "[online] ONLINE"
     assert "vm-100" in ProxmoxFormatters.format_resource_header("vm", "vm-100")
     assert "Details" in ProxmoxFormatters.format_section_header("Details", "details")
-    assert ProxmoxFormatters.format_key_value("Node", "pve1", "[node]") == "[node] Node: pve1"
+    assert (
+        ProxmoxFormatters.format_key_value("Node", "pve1", "[node]")
+        == "[node] Node: pve1"
+    )
 
     output = ProxmoxFormatters.format_command_output(
         success=False,

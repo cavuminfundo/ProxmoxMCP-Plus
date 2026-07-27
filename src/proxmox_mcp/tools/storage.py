@@ -30,29 +30,39 @@ def _as_list(maybe):
 
 class StorageTools(ProxmoxTool):
     """Tools for managing Proxmox storage.
-    
+
     Provides functionality for:
     - Retrieving cluster-wide storage information
     - Monitoring storage pool status and health
     - Tracking storage utilization and capacity
     - Managing storage content types
-    
+
     Implements fallback mechanisms for scenarios where detailed
     storage information might be temporarily unavailable.
     """
 
     def _node_names(self) -> List[str]:
-        nodes = _as_list(self._call_with_retry("get nodes", lambda: self.proxmox.nodes.get()))
+        nodes = _as_list(
+            self._call_with_retry("get nodes", lambda: self.proxmox.nodes.get())
+        )
         online = [
             str(node["node"])
             for node in nodes
-            if isinstance(node, dict) and node.get("node") and node.get("status") != "offline"
+            if isinstance(node, dict)
+            and node.get("node")
+            and node.get("status") != "offline"
         ]
         if online:
             return online
-        return [str(node["node"]) for node in nodes if isinstance(node, dict) and node.get("node")]
+        return [
+            str(node["node"])
+            for node in nodes
+            if isinstance(node, dict) and node.get("node")
+        ]
 
-    def _candidate_nodes_for_storage(self, store: dict, node_names: List[str]) -> List[str]:
+    def _candidate_nodes_for_storage(
+        self, store: dict, node_names: List[str]
+    ) -> List[str]:
         raw_nodes = store.get("nodes")
         if isinstance(raw_nodes, str) and raw_nodes.strip():
             restricted = [item.strip() for item in raw_nodes.split(",") if item.strip()]
@@ -103,7 +113,7 @@ class StorageTools(ProxmoxTool):
           * Used space
           * Total capacity
           * Available space
-        
+
         Implements a fallback mechanism that returns basic information
         if detailed status retrieval fails for any storage pool.
 
@@ -127,33 +137,43 @@ class StorageTools(ProxmoxTool):
             return self._format_response(cached, "storage")
 
         try:
-            result = self._call_with_retry("get storage", lambda: self.proxmox.storage.get())
+            result = self._call_with_retry(
+                "get storage", lambda: self.proxmox.storage.get()
+            )
             node_names = self._node_names()
             storage = []
-            
+
             for store in result:
                 status = self._storage_status(store, node_names)
                 if status is not None:
-                    storage.append({
-                        "storage": store["storage"],
-                        "type": store["type"],
-                        "content": store.get("content", []),
-                        "status": "online" if store.get("enabled", True) else "offline",
-                        "used": status.get("used", 0),
-                        "total": status.get("total", 0),
-                        "available": status.get("avail", 0)
-                    })
+                    storage.append(
+                        {
+                            "storage": store["storage"],
+                            "type": store["type"],
+                            "content": store.get("content", []),
+                            "status": "online"
+                            if store.get("enabled", True)
+                            else "offline",
+                            "used": status.get("used", 0),
+                            "total": status.get("total", 0),
+                            "available": status.get("avail", 0),
+                        }
+                    )
                 else:
-                    storage.append({
-                        "storage": store["storage"],
-                        "type": store["type"],
-                        "content": store.get("content", []),
-                        "status": "online" if store.get("enabled", True) else "offline",
-                        "used": 0,
-                        "total": 0,
-                        "available": 0
-                    })
-                    
+                    storage.append(
+                        {
+                            "storage": store["storage"],
+                            "type": store["type"],
+                            "content": store.get("content", []),
+                            "status": "online"
+                            if store.get("enabled", True)
+                            else "offline",
+                            "used": 0,
+                            "total": 0,
+                            "available": 0,
+                        }
+                    )
+
             self._cache_set("storage:list", storage, ttl_seconds=10)
             return self._format_response(storage, "storage")
         except Exception as e:

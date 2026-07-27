@@ -32,8 +32,8 @@ def test_command_approval_token_match_allows():
         None,
         "",
         "wrong",
-        "s3cret-toke",   # prefix
-        "s3cret-token!", # suffix
+        "s3cret-toke",  # prefix
+        "s3cret-token!",  # suffix
     ],
 )
 def test_command_approval_token_mismatch_denies(supplied):
@@ -106,5 +106,7 @@ def test_high_risk_operation_falls_back_to_command_token():
         high_risk_approval_token=None,
     )
 
-    assert gate.evaluate_operation("delete_vm", approval_token="cmd-token").allowed is True
+    assert (
+        gate.evaluate_operation("delete_vm", approval_token="cmd-token").allowed is True
+    )
     assert gate.evaluate_operation("delete_vm", approval_token="other").allowed is False

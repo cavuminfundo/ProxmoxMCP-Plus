@@ -21,20 +21,28 @@ class _JobStore:
 
 def test_get_vms_falls_back_to_node_scan_with_configured_cores():
     proxmox = Mock()
-    proxmox.cluster.resources.get.side_effect = RuntimeError("cluster endpoint unavailable")
+    proxmox.cluster.resources.get.side_effect = RuntimeError(
+        "cluster endpoint unavailable"
+    )
     proxmox.nodes.get.return_value = [{"node": "pve1"}]
     node_api = Mock()
     proxmox.nodes.return_value = node_api
     node_api.qemu.get.return_value = [
-        {"vmid": 100, "name": "db", "status": "running", "mem": 256, "maxmem": 1024}
+        {
+            "vmid": 100,
+            "name": "db",
+            "status": "running",
+            "mem": 256,
+            "maxmem": 1024,
+            "maxcpu": 4,
+        }
     ]
-    node_api.qemu.return_value.config.get.return_value = {"cores": 4}
 
     response = VMTools(proxmox).get_vms()
 
     assert "db" in response[0].text
     assert "pve1" in response[0].text
-    node_api.qemu.return_value.config.get.assert_called_once()
+    # We no longer query config per-vm since it's an N+1 query issue
 
 
 def test_create_vm_auto_detects_lvm_storage_and_registers_job():
@@ -72,9 +80,16 @@ def test_get_containers_include_stats_json_adds_raw_status_and_rrd_fallback():
         {"type": "lxc", "node": "pve1", "vmid": 101, "name": "web", "status": "running"}
     ]
     ct_api = proxmox.nodes.return_value.lxc.return_value
-    ct_api.status.current.get.return_value = {"status": "running", "cpu": 0, "mem": 0, "maxmem": 0}
+    ct_api.status.current.get.return_value = {
+        "status": "running",
+        "cpu": 0,
+        "mem": 0,
+        "maxmem": 0,
+    }
     ct_api.config.get.return_value = {"memory": 512, "cores": 2, "swap": 512}
-    ct_api.rrddata.get.return_value = [{"cpu": 0.25, "mem": 134217728, "maxmem": 536870912}]
+    ct_api.rrddata.get.return_value = [
+        {"cpu": 0.25, "mem": 134217728, "maxmem": 536870912}
+    ]
 
     response = ContainerTools(proxmox).get_containers(
         include_stats=True,
@@ -125,7 +140,12 @@ def test_list_snapshots_skips_current_and_formats_snapshot_time():
     snapshot_api = proxmox.nodes.return_value.qemu.return_value.snapshot
     snapshot_api.get.return_value = [
         {"name": "current"},
-        {"name": "before-upgrade", "description": "stable", "snaptime": 1700000000, "vmstate": 1},
+        {
+            "name": "before-upgrade",
+            "description": "stable",
+            "snaptime": 1700000000,
+            "vmstate": 1,
+        },
     ]
 
     response = SnapshotTools(proxmox).list_snapshots("pve1", "100")
@@ -210,23 +230,34 @@ def test_list_backups_filters_formats_and_sorts_results():
         }
     ]
 
-    response = BackupTools(proxmox).list_backups(node="pve1", storage="local", vmid="100")
+    response = BackupTools(proxmox).list_backups(
+        node="pve1", storage="local", vmid="100"
+    )
 
     assert "Available Backups" in response[0].text
     assert "VM/CT 100" in response[0].text
     assert "pre-upgrade" in response[0].text
     assert "Protected" in response[0].text
-    node_api.storage.return_value.content.get.assert_called_once_with(content="backup", vmid=100)
+    node_api.storage.return_value.content.get.assert_called_once_with(
+        content="backup", vmid=100
+    )
 
 
 def test_list_backups_reports_empty_filtered_result():
     proxmox = Mock()
     proxmox.nodes.get.return_value = [{"node": "pve1"}]
-    proxmox.nodes.return_value.storage.get.return_value = [{"storage": "local", "content": "iso"}]
+    proxmox.nodes.return_value.storage.get.return_value = [
+        {"storage": "local", "content": "iso"}
+    ]
 
-    response = BackupTools(proxmox).list_backups(node="pve1", storage="local", vmid="100")
+    response = BackupTools(proxmox).list_backups(
+        node="pve1", storage="local", vmid="100"
+    )
 
-    assert response[0].text == "No backups found on node pve1 in storage local for VM/CT 100"
+    assert (
+        response[0].text
+        == "No backups found on node pve1 in storage local for VM/CT 100"
+    )
 
 
 def test_create_backup_registers_retry_recipe_with_notes():

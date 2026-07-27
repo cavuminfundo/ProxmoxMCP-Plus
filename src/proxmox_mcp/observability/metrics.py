@@ -87,10 +87,14 @@ class ToolMetrics:
 class HttpRequestMetrics:
     """HTTP request metrics keyed by route, method, and status code."""
 
-    _series: dict[tuple[str, str, str], LabeledMetricSeries] = field(default_factory=dict)
+    _series: dict[tuple[str, str, str], LabeledMetricSeries] = field(
+        default_factory=dict
+    )
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def observe(self, route: str, method: str, status_code: int, latency_ms: float) -> None:
+    def observe(
+        self, route: str, method: str, status_code: int, latency_ms: float
+    ) -> None:
         route_key = route or "/"
         method_key = method.upper()
         status_key = str(status_code)

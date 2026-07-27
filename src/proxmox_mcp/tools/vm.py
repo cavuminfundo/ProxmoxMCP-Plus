@@ -32,9 +32,10 @@ def _as_dict(maybe: Any) -> Dict:
         return maybe
     return {}
 
+
 class VMTools(ProxmoxTool):
     """Tools for managing Proxmox VMs.
-    
+
     Provides functionality for:
     - Retrieving cluster-wide VM information
     - Getting detailed VM status and configuration
@@ -42,7 +43,7 @@ class VMTools(ProxmoxTool):
     - Managing VM console operations
     - VM power management (start, stop, shutdown, reset)
     - VM creation with customizable specifications
-    
+
     Implements fallback mechanisms for scenarios where detailed
     VM information might be temporarily unavailable. Integrates
     with QEMU guest agent for VM command execution.
@@ -76,7 +77,9 @@ class VMTools(ProxmoxTool):
         try:
             resources = self.proxmox.cluster.resources.get(type="vm")
         except Exception as error:
-            self.logger.debug("Cluster VM inventory unavailable, falling back to node scan: %s", error)
+            self.logger.debug(
+                "Cluster VM inventory unavailable, falling back to node scan: %s", error
+            )
             return None
         if not isinstance(resources, list):
             return None
@@ -92,17 +95,19 @@ class VMTools(ProxmoxTool):
                     vmid = resource_id.rsplit("/", 1)[-1]
             if vmid is None:
                 continue
-            result.append({
-                "vmid": vmid,
-                "name": vm.get("name") or f"VM-{vmid}",
-                "status": vm.get("status", "unknown"),
-                "node": vm.get("node", "unknown"),
-                "cpus": vm.get("maxcpu", vm.get("cpus", "N/A")),
-                "memory": {
-                    "used": vm.get("mem", 0),
-                    "total": vm.get("maxmem", 0),
-                },
-            })
+            result.append(
+                {
+                    "vmid": vmid,
+                    "name": vm.get("name") or f"VM-{vmid}",
+                    "status": vm.get("status", "unknown"),
+                    "node": vm.get("node", "unknown"),
+                    "cpus": vm.get("maxcpu", vm.get("cpus", "N/A")),
+                    "memory": {
+                        "used": vm.get("mem", 0),
+                        "total": vm.get("maxmem", 0),
+                    },
+                }
+            )
         return result if result else None
 
     def get_vm_config(self, node: str, vmid: str) -> List[Content]:
@@ -134,7 +139,9 @@ class VMTools(ProxmoxTool):
         """
         try:
             self.proxmox.nodes(node).qemu(vmid).config.put(description=description)
-            return self._json_fmt({"vmid": vmid, "node": node, "description": description})
+            return self._json_fmt(
+                {"vmid": vmid, "node": node, "description": description}
+            )
         except Exception as e:
             return self._err("set_vm_description", e)
 
@@ -148,7 +155,7 @@ class VMTools(ProxmoxTool):
           * CPU cores
           * Memory allocation and usage
         - Node placement
-        
+
         Implements a fallback mechanism that returns basic information
         if detailed configuration retrieval fails for any VM.
 
@@ -192,39 +199,27 @@ class VMTools(ProxmoxTool):
                     vms = self.proxmox.nodes(node_name).qemu.get()
                 except Exception as node_error:
                     self.logger.warning(
-                        "Skipping node %s while gathering VM list: %s", node_name, node_error
+                        "Skipping node %s while gathering VM list: %s",
+                        node_name,
+                        node_error,
                     )
                     continue
 
                 for vm in vms:
                     vmid = vm["vmid"]
-                    # Get VM config for CPU cores
-                    try:
-                        config = self.proxmox.nodes(node_name).qemu(vmid).config.get()
-                        result.append({
+                    result.append(
+                        {
                             "vmid": vmid,
                             "name": vm["name"],
                             "status": vm["status"],
                             "node": node_name,
-                            "cpus": config.get("cores", "N/A"),
+                            "cpus": vm.get("maxcpu", vm.get("cpus", "N/A")),
                             "memory": {
                                 "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
-                    except Exception:
-                        # Fallback if can't get config
-                        result.append({
-                            "vmid": vmid,
-                            "name": vm["name"],
-                            "status": vm["status"],
-                            "node": node_name,
-                            "cpus": "N/A",
-                            "memory": {
-                                "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
+                                "total": vm.get("maxmem", 0),
+                            },
+                        }
+                    )
         except Exception as e:
             self._handle_error("get VMs", e)
 
@@ -244,7 +239,7 @@ class VMTools(ProxmoxTool):
         pool: Optional[str] = None,
     ) -> List[Content]:
         """Create a new virtual machine with specified configuration.
-        
+
         Args:
             node: Host node name (e.g., 'pve')
             vmid: New VM ID number (e.g., '200')
@@ -256,10 +251,10 @@ class VMTools(ProxmoxTool):
             ostype: OS type (e.g., 'l26' for Linux, 'win10' for Windows). Default: 'l26'
             network_bridge: Network bridge name (e.g., 'vmbr0'). If None, defaults to 'vmbr0'
             pool: Proxmox resource pool to create the VM in. If None, no pool is specified
-            
+
         Returns:
             List of Content objects containing creation result
-            
+
         Raises:
             ValueError: If VM ID already exists or invalid parameters
             RuntimeError: If VM creation fails
@@ -272,13 +267,13 @@ class VMTools(ProxmoxTool):
             except Exception as e:
                 if "does not exist" not in str(e).lower():
                     raise e
-            
+
             # Get storage information
             storage_list = self.proxmox.nodes(node).storage.get()
             storage_info = {}
             for s in storage_list:
                 storage_info[s["storage"]] = s
-            
+
             # Auto-detect storage if not specified
             if storage is None:
                 # Prefer local-lvm for VM images first
@@ -287,9 +282,11 @@ class VMTools(ProxmoxTool):
                         storage = s["storage"]
                         break
                 if storage is None:
-                    # Then try vm-storage 
+                    # Then try vm-storage
                     for s in storage_list:
-                        if s["storage"] == "vm-storage" and "images" in s.get("content", ""):
+                        if s["storage"] == "vm-storage" and "images" in s.get(
+                            "content", ""
+                        ):
                             storage = s["storage"]
                             break
                 if storage is None:
@@ -300,17 +297,17 @@ class VMTools(ProxmoxTool):
                             break
                     if storage is None:
                         raise ValueError("No suitable storage found for VM images")
-            
+
             # Validate storage exists and supports images
             if storage not in storage_info:
                 raise ValueError(f"Storage '{storage}' not found on node {node}")
-            
+
             if "images" not in storage_info[storage].get("content", ""):
                 raise ValueError(f"Storage '{storage}' does not support VM images")
-            
+
             # Determine appropriate disk format based on storage type
             storage_type = storage_info[storage]["type"]
-            
+
             if storage_type in ["lvm", "lvmthin"]:
                 # LVM storages use raw format and no cloudinit
                 disk_format = "raw"
@@ -330,14 +327,14 @@ class VMTools(ProxmoxTool):
                 vm_config_storage = {
                     "scsi0": f"{storage}:{disk_size},format={disk_format}",
                 }
-            
+
             # Set default OS type
             if ostype is None:
                 ostype = "l26"  # Linux 2.6+ kernel
 
             if not network_bridge:
                 network_bridge = "vmbr0"
-            
+
             # Prepare VM configuration
             vm_config = {
                 "vmid": vmid,
@@ -351,13 +348,13 @@ class VMTools(ProxmoxTool):
                 "vga": "std",
                 "net0": f"virtio,bridge={network_bridge}",
             }
-            
+
             # Add storage configuration
             vm_config.update(vm_config_storage)
 
             if pool:
                 vm_config["pool"] = pool
-            
+
             # Create the VM
             task_result = self.proxmox.nodes(node).qemu.create(**vm_config)
             job = self._register_background_job(
@@ -366,15 +363,22 @@ class VMTools(ProxmoxTool):
                 node=node,
                 upid=task_result,
                 metadata={"vmid": vmid, "name": name},
-                retry_spec={"kind": "vm.create", "params": {"node": node, "vm_config": vm_config}},
+                retry_spec={
+                    "kind": "vm.create",
+                    "params": {"node": node, "vm_config": vm_config},
+                },
                 retry_factory=lambda: self.proxmox.nodes(node).qemu.create(**vm_config),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
-            
+
             cloudinit_note = ""
             if storage_type in ["lvm", "lvmthin"]:
-                cloudinit_note = "\n  - Note: LVM storage does not support cloud-init images"
-            
+                cloudinit_note = (
+                    "\n  - Note: LVM storage does not support cloud-init images"
+                )
+
             result_text = f"""VM {vmid} created successfully
 
 VM Configuration:
@@ -396,9 +400,9 @@ Next steps:
   1. Upload an ISO to install the operating system
   2. Start the VM using start_vm tool
   3. Access the console to complete OS installation"""
-            
+
             return [Content(type="text", text=result_text)]
-            
+
         except ValueError as e:
             raise e
         except Exception as e:
@@ -420,7 +424,9 @@ Next steps:
         destination_node = target_node or node
 
         try:
-            source_status = self.proxmox.nodes(node).qemu(source_vmid).status.current.get()
+            source_status = (
+                self.proxmox.nodes(node).qemu(source_vmid).status.current.get()
+            )
         except Exception as e:
             if "does not exist" in str(e).lower() or "not found" in str(e).lower():
                 raise ValueError(f"Source VM {source_vmid} not found on node {node}")
@@ -430,11 +436,16 @@ Next steps:
 
         try:
             self.proxmox.nodes(destination_node).qemu(target_vmid).config.get()
-            raise ValueError(f"Target VM ID {target_vmid} already exists on node {destination_node}")
+            raise ValueError(
+                f"Target VM ID {target_vmid} already exists on node {destination_node}"
+            )
         except ValueError:
             raise
         except Exception as e:
-            if "does not exist" not in str(e).lower() and "not found" not in str(e).lower():
+            if (
+                "does not exist" not in str(e).lower()
+                and "not found" not in str(e).lower()
+            ):
                 self._handle_error(f"check target VM {target_vmid}", e)
 
         clone_payload: dict[str, Any] = {
@@ -453,7 +464,9 @@ Next steps:
             clone_payload["snapname"] = snapname
 
         try:
-            task_result = self.proxmox.nodes(node).qemu(source_vmid).clone.post(**clone_payload)
+            task_result = (
+                self.proxmox.nodes(node).qemu(source_vmid).clone.post(**clone_payload)
+            )
         except Exception as e:
             self._handle_error(f"clone VM {source_vmid} -> {target_vmid}", e)
 
@@ -470,9 +483,20 @@ Next steps:
                 "full": full,
                 "name": name,
             },
-            retry_spec={"kind": "vm.clone", "params": {"node": node, "source_vmid": source_vmid, "clone_payload": clone_payload}},
-            retry_factory=lambda: self.proxmox.nodes(node).qemu(source_vmid).clone.post(**clone_payload),
-            cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+            retry_spec={
+                "kind": "vm.clone",
+                "params": {
+                    "node": node,
+                    "source_vmid": source_vmid,
+                    "clone_payload": clone_payload,
+                },
+            },
+            retry_factory=lambda: self.proxmox.nodes(node)
+            .qemu(source_vmid)
+            .clone.post(**clone_payload),
+            cancel_factory=lambda upid: self.proxmox.nodes(node)
+            .tasks(upid)
+            .status.stop.post(),
         )
 
         result_text = f"""VM clone initiated successfully
@@ -493,20 +517,22 @@ Clone Configuration:
         if snapname:
             result_text += f"\n  - Snapshot: {snapname}"
 
-        result_text += f"\n\nTask ID: {task_result}\nJob ID: {job['job_id'] if job else 'n/a'}"
+        result_text += (
+            f"\n\nTask ID: {task_result}\nJob ID: {job['job_id'] if job else 'n/a'}"
+        )
 
         return [Content(type="text", text=result_text)]
 
     def start_vm(self, node: str, vmid: str) -> List[Content]:
         """Start a virtual machine.
-        
+
         Args:
             node: Host node name (e.g., 'pve1', 'proxmox-node2')
             vmid: VM ID number (e.g., '100', '101')
-            
+
         Returns:
             List of Content objects containing operation result
-            
+
         Raises:
             ValueError: If VM is not found
             RuntimeError: If start operation fails
@@ -515,7 +541,7 @@ Clone Configuration:
             # Check if VM exists and get current status
             vm_status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
             current_status = vm_status.get("status")
-            
+
             if current_status == "running":
                 result_text = f"VM {vmid} is already running"
             else:
@@ -527,18 +553,25 @@ Clone Configuration:
                     node=node,
                     upid=task_result,
                     metadata={"vmid": vmid},
-                    retry_spec={"kind": "vm.start", "params": {"node": node, "vmid": vmid}},
-                    retry_factory=lambda: self.proxmox.nodes(node).qemu(vmid).status.start.post(),
-                    cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                    retry_spec={
+                        "kind": "vm.start",
+                        "params": {"node": node, "vmid": vmid},
+                    },
+                    retry_factory=lambda: self.proxmox.nodes(node)
+                    .qemu(vmid)
+                    .status.start.post(),
+                    cancel_factory=lambda upid: self.proxmox.nodes(node)
+                    .tasks(upid)
+                    .status.stop.post(),
                 )
                 result_text = (
                     f"VM {vmid} start initiated successfully\n"
                     f"Task ID: {task_result}\n"
                     f"Job ID: {job['job_id'] if job else 'n/a'}"
                 )
-                
+
             return [Content(type="text", text=result_text)]
-            
+
         except Exception as e:
             if "does not exist" in str(e).lower() or "not found" in str(e).lower():
                 raise ValueError(f"VM {vmid} not found on node {node}")
@@ -546,14 +579,14 @@ Clone Configuration:
 
     def stop_vm(self, node: str, vmid: str) -> List[Content]:
         """Stop a virtual machine (force stop).
-        
+
         Args:
-            node: Host node name (e.g., 'pve1', 'proxmox-node2') 
+            node: Host node name (e.g., 'pve1', 'proxmox-node2')
             vmid: VM ID number (e.g., '100', '101')
-            
+
         Returns:
             List of Content objects containing operation result
-            
+
         Raises:
             ValueError: If VM is not found
             RuntimeError: If stop operation fails
@@ -562,7 +595,7 @@ Clone Configuration:
             # Check if VM exists and get current status
             vm_status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
             current_status = vm_status.get("status")
-            
+
             if current_status == "stopped":
                 result_text = f"VM {vmid} is already stopped"
             else:
@@ -574,18 +607,25 @@ Clone Configuration:
                     node=node,
                     upid=task_result,
                     metadata={"vmid": vmid},
-                    retry_spec={"kind": "vm.stop", "params": {"node": node, "vmid": vmid}},
-                    retry_factory=lambda: self.proxmox.nodes(node).qemu(vmid).status.stop.post(),
-                    cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                    retry_spec={
+                        "kind": "vm.stop",
+                        "params": {"node": node, "vmid": vmid},
+                    },
+                    retry_factory=lambda: self.proxmox.nodes(node)
+                    .qemu(vmid)
+                    .status.stop.post(),
+                    cancel_factory=lambda upid: self.proxmox.nodes(node)
+                    .tasks(upid)
+                    .status.stop.post(),
                 )
                 result_text = (
                     f"VM {vmid} stop initiated successfully\n"
                     f"Task ID: {task_result}\n"
                     f"Job ID: {job['job_id'] if job else 'n/a'}"
                 )
-                
+
             return [Content(type="text", text=result_text)]
-            
+
         except Exception as e:
             if "does not exist" in str(e).lower() or "not found" in str(e).lower():
                 raise ValueError(f"VM {vmid} not found on node {node}")
@@ -593,14 +633,14 @@ Clone Configuration:
 
     def shutdown_vm(self, node: str, vmid: str) -> List[Content]:
         """Shutdown a virtual machine gracefully.
-        
+
         Args:
             node: Host node name (e.g., 'pve1', 'proxmox-node2')
             vmid: VM ID number (e.g., '100', '101')
-            
+
         Returns:
             List of Content objects containing operation result
-            
+
         Raises:
             ValueError: If VM is not found
             RuntimeError: If shutdown operation fails
@@ -609,7 +649,7 @@ Clone Configuration:
             # Check if VM exists and get current status
             vm_status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
             current_status = vm_status.get("status")
-            
+
             if current_status == "stopped":
                 result_text = f"VM {vmid} is already stopped"
             else:
@@ -621,18 +661,25 @@ Clone Configuration:
                     node=node,
                     upid=task_result,
                     metadata={"vmid": vmid},
-                    retry_spec={"kind": "vm.shutdown", "params": {"node": node, "vmid": vmid}},
-                    retry_factory=lambda: self.proxmox.nodes(node).qemu(vmid).status.shutdown.post(),
-                    cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                    retry_spec={
+                        "kind": "vm.shutdown",
+                        "params": {"node": node, "vmid": vmid},
+                    },
+                    retry_factory=lambda: self.proxmox.nodes(node)
+                    .qemu(vmid)
+                    .status.shutdown.post(),
+                    cancel_factory=lambda upid: self.proxmox.nodes(node)
+                    .tasks(upid)
+                    .status.stop.post(),
                 )
                 result_text = (
                     f"VM {vmid} graceful shutdown initiated\n"
                     f"Task ID: {task_result}\n"
                     f"Job ID: {job['job_id'] if job else 'n/a'}"
                 )
-                
+
             return [Content(type="text", text=result_text)]
-            
+
         except Exception as e:
             if "does not exist" in str(e).lower() or "not found" in str(e).lower():
                 raise ValueError(f"VM {vmid} not found on node {node}")
@@ -640,14 +687,14 @@ Clone Configuration:
 
     def reset_vm(self, node: str, vmid: str) -> List[Content]:
         """Reset (restart) a virtual machine.
-        
+
         Args:
             node: Host node name (e.g., 'pve1', 'proxmox-node2')
             vmid: VM ID number (e.g., '100', '101')
-            
+
         Returns:
             List of Content objects containing operation result
-            
+
         Raises:
             ValueError: If VM is not found
             RuntimeError: If reset operation fails
@@ -656,7 +703,7 @@ Clone Configuration:
             # Check if VM exists and get current status
             vm_status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
             current_status = vm_status.get("status")
-            
+
             if current_status == "stopped":
                 result_text = f"Cannot reset VM {vmid}: VM is currently stopped\nUse start_vm to start it first"
             else:
@@ -668,18 +715,25 @@ Clone Configuration:
                     node=node,
                     upid=task_result,
                     metadata={"vmid": vmid},
-                    retry_spec={"kind": "vm.reset", "params": {"node": node, "vmid": vmid}},
-                    retry_factory=lambda: self.proxmox.nodes(node).qemu(vmid).status.reset.post(),
-                    cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                    retry_spec={
+                        "kind": "vm.reset",
+                        "params": {"node": node, "vmid": vmid},
+                    },
+                    retry_factory=lambda: self.proxmox.nodes(node)
+                    .qemu(vmid)
+                    .status.reset.post(),
+                    cancel_factory=lambda upid: self.proxmox.nodes(node)
+                    .tasks(upid)
+                    .status.stop.post(),
                 )
                 result_text = (
                     f"VM {vmid} reset initiated successfully\n"
                     f"Task ID: {task_result}\n"
                     f"Job ID: {job['job_id'] if job else 'n/a'}"
                 )
-                
+
             return [Content(type="text", text=result_text)]
-            
+
         except Exception as e:
             if "does not exist" in str(e).lower() or "not found" in str(e).lower():
                 raise ValueError(f"VM {vmid} not found on node {node}")
@@ -719,7 +773,9 @@ Clone Configuration:
         """
         try:
             if self.command_policy is not None:
-                decision = self.command_policy.evaluate(command, approval_token=approval_token)
+                decision = self.command_policy.evaluate(
+                    command, approval_token=approval_token
+                )
                 if not decision.allowed:
                     policy_result = ToolResult(
                         success=False,
@@ -734,14 +790,17 @@ Clone Configuration:
                         )
                     ]
 
-            exec_result = await self.console_manager.execute_command(node, vmid, command)
+            exec_result = await self.console_manager.execute_command(
+                node, vmid, command
+            )
             # Use the command output formatter from ProxmoxFormatters
             from proxmox_mcp.formatting import ProxmoxFormatters
+
             formatted = ProxmoxFormatters.format_command_output(
                 success=exec_result["success"],
                 command=command,
                 output=exec_result["output"],
-                error=exec_result.get("error")
+                error=exec_result.get("error"),
             )
             return [Content(type="text", text=formatted)]
         except Exception as e:
@@ -755,22 +814,22 @@ Clone Configuration:
         approval_token: Optional[str] = None,
     ) -> List[Content]:
         """Delete/remove a virtual machine completely.
-        
+
         This will permanently delete the VM and all its associated data including:
         - VM configuration
         - Virtual disks
         - Snapshots
-        
+
         WARNING: This operation cannot be undone!
-        
+
         Args:
             node: Host node name (e.g., 'pve1', 'proxmox-node2')
             vmid: VM ID number (e.g., '100', '101')
             force: Force deletion even if VM is running (will stop first)
-            
+
         Returns:
             List of Content objects containing deletion result
-            
+
         Raises:
             ValueError: If VM is not found or is running and force=False
             RuntimeError: If deletion fails
@@ -786,19 +845,21 @@ Clone Configuration:
                 if "does not exist" in str(e).lower() or "not found" in str(e).lower():
                     raise ValueError(f"VM {vmid} not found on node {node}")
                 raise e
-            
+
             # Check if VM is running
             if current_status == "running":
                 if not force:
-                    raise ValueError(f"VM {vmid} ({vm_name}) is currently running. "
-                                   f"Please stop it first or use force=True to stop and delete.")
+                    raise ValueError(
+                        f"VM {vmid} ({vm_name}) is currently running. "
+                        f"Please stop it first or use force=True to stop and delete."
+                    )
                 else:
                     # Force stop the VM first
                     self.proxmox.nodes(node).qemu(vmid).status.stop.post()
                     result_text = f"Stopping VM {vmid} ({vm_name}) before deletion...\n"
             else:
                 result_text = f"Deleting VM {vmid} ({vm_name})...\n"
-            
+
             # Delete the VM
             task_result = self.proxmox.nodes(node).qemu(vmid).delete()
             job = self._register_background_job(
@@ -807,11 +868,16 @@ Clone Configuration:
                 node=node,
                 upid=task_result,
                 metadata={"vmid": vmid, "force": force},
-                retry_spec={"kind": "vm.delete", "params": {"node": node, "vmid": vmid}},
+                retry_spec={
+                    "kind": "vm.delete",
+                    "params": {"node": node, "vmid": vmid},
+                },
                 retry_factory=lambda: self.proxmox.nodes(node).qemu(vmid).delete(),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
-            
+
             result_text += f"""VM {vmid} ({vm_name}) deletion initiated successfully
 
 WARNING: This operation will permanently remove:
@@ -824,9 +890,9 @@ Task ID: {task_result}
 Job ID: {job["job_id"] if job else "n/a"}
 
 VM {vmid} ({vm_name}) is being deleted from node {node}"""
-            
+
             return [Content(type="text", text=result_text)]
-            
+
         except ValueError as e:
             raise e
         except Exception as e:

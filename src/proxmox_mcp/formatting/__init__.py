@@ -9,9 +9,9 @@ from proxmox_mcp.formatting.templates import ProxmoxTemplates
 from proxmox_mcp.formatting.components import ProxmoxComponents
 
 __all__ = [
-    'ProxmoxTheme',
-    'ProxmoxColors',
-    'ProxmoxFormatters',
-    'ProxmoxTemplates',
-    'ProxmoxComponents'
+    "ProxmoxTheme",
+    "ProxmoxColors",
+    "ProxmoxFormatters",
+    "ProxmoxTemplates",
+    "ProxmoxComponents",
 ]

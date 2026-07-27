@@ -11,7 +11,9 @@ OPENAPI_MODES = {"openapi", "api", "rest"}
 MCP_HTTP_MODES = {"mcp-http", "streamable-http", "streamable", "mcp"}
 
 
-def build_command(mode: str | None = None, environ: MutableMapping[str, str] | None = None) -> list[str]:
+def build_command(
+    mode: str | None = None, environ: MutableMapping[str, str] | None = None
+) -> list[str]:
     env = environ if environ is not None else os.environ
     selected_mode = (mode or env.get("PROXMOX_MCP_MODE", "openapi")).strip().lower()
 
@@ -39,7 +41,9 @@ def build_command(mode: str | None = None, environ: MutableMapping[str, str] | N
         return [sys.executable, "-m", "proxmox_mcp.server"]
 
     valid_modes = ", ".join(sorted(OPENAPI_MODES | MCP_HTTP_MODES))
-    raise ValueError(f"Unsupported PROXMOX_MCP_MODE={selected_mode!r}. Expected one of: {valid_modes}")
+    raise ValueError(
+        f"Unsupported PROXMOX_MCP_MODE={selected_mode!r}. Expected one of: {valid_modes}"
+    )
 
 
 def main() -> None:

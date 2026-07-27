@@ -17,7 +17,9 @@ HARNESS = ROOT / "tests" / "scripts" / "run_real_e2e.py"
 @pytest.mark.integration
 def test_real_contract_suite() -> None:
     if os.getenv("PROXMOX_RUN_INTEGRATION") != "1":
-        pytest.skip("Set PROXMOX_RUN_INTEGRATION=1 to run live Proxmox integration tests.")
+        pytest.skip(
+            "Set PROXMOX_RUN_INTEGRATION=1 to run live Proxmox integration tests."
+        )
 
     result = subprocess.run(
         [sys.executable, str(HARNESS)],

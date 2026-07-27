@@ -66,17 +66,25 @@ class ProxmoxMCPServer:
         self.proxmox = self.proxmox_manager.get_api()
         self.command_policy = CommandPolicyGate(self.config.command_policy)
         self.metrics = ToolMetrics()
-        self.job_store = JobStore(self.proxmox, sqlite_path=self.config.jobs.sqlite_path)
+        self.job_store = JobStore(
+            self.proxmox, sqlite_path=self.config.jobs.sqlite_path
+        )
 
-        self.node_tools = NodeTools(self.proxmox, metrics=self.metrics, job_store=self.job_store)
+        self.node_tools = NodeTools(
+            self.proxmox, metrics=self.metrics, job_store=self.job_store
+        )
         self.vm_tools = VMTools(
             self.proxmox,
             command_policy=self.command_policy,
             metrics=self.metrics,
             job_store=self.job_store,
         )
-        self.storage_tools = StorageTools(self.proxmox, metrics=self.metrics, job_store=self.job_store)
-        self.cluster_tools = ClusterTools(self.proxmox, metrics=self.metrics, job_store=self.job_store)
+        self.storage_tools = StorageTools(
+            self.proxmox, metrics=self.metrics, job_store=self.job_store
+        )
+        self.cluster_tools = ClusterTools(
+            self.proxmox, metrics=self.metrics, job_store=self.job_store
+        )
         self.container_tools = ContainerTools(
             self.proxmox,
             self.config.ssh,
@@ -84,9 +92,15 @@ class ProxmoxMCPServer:
             metrics=self.metrics,
             job_store=self.job_store,
         )
-        self.snapshot_tools = SnapshotTools(self.proxmox, metrics=self.metrics, job_store=self.job_store)
-        self.iso_tools = ISOTools(self.proxmox, metrics=self.metrics, job_store=self.job_store)
-        self.backup_tools = BackupTools(self.proxmox, metrics=self.metrics, job_store=self.job_store)
+        self.snapshot_tools = SnapshotTools(
+            self.proxmox, metrics=self.metrics, job_store=self.job_store
+        )
+        self.iso_tools = ISOTools(
+            self.proxmox, metrics=self.metrics, job_store=self.job_store
+        )
+        self.backup_tools = BackupTools(
+            self.proxmox, metrics=self.metrics, job_store=self.job_store
+        )
         self.jobs_tools = JobsTools(self.job_store)
 
         log_level = cast(
@@ -166,7 +180,9 @@ class ProxmoxMCPServer:
 
         try:
             transport = self.config.mcp.transport
-            self.logger.info("Starting Proxmox MCP Server with transport: %s", transport)
+            self.logger.info(
+                "Starting Proxmox MCP Server with transport: %s", transport
+            )
 
             if transport == "STDIO":
                 anyio.run(self.mcp.run_stdio_async)

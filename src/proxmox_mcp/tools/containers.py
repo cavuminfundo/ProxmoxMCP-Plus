@@ -71,7 +71,9 @@ class ContainerTools(ProxmoxTool):
     ) -> None:
         super().__init__(proxmox_api, metrics=metrics, job_store=job_store)
         self.console_manager: Optional[ContainerConsoleManager] = (
-            ContainerConsoleManager(proxmox_api, ssh_config) if ssh_config is not None else None
+            ContainerConsoleManager(proxmox_api, ssh_config)
+            if ssh_config is not None
+            else None
         )
         self.command_policy = command_policy
 
@@ -84,11 +86,16 @@ class ContainerTools(ProxmoxTool):
         self._handle_error(action, e)
 
     # ---------- helpers ----------
-    def _cluster_ct_pairs(self, node: Optional[str]) -> Optional[List[Tuple[str, Dict]]]:
+    def _cluster_ct_pairs(
+        self, node: Optional[str]
+    ) -> Optional[List[Tuple[str, Dict]]]:
         try:
             resources = self.proxmox.cluster.resources.get(type="vm")
         except Exception as error:
-            self.logger.debug("Cluster container inventory unavailable, falling back to node scan: %s", error)
+            self.logger.debug(
+                "Cluster container inventory unavailable, falling back to node scan: %s",
+                error,
+            )
             return None
         if not isinstance(resources, list):
             return None
@@ -151,7 +158,9 @@ class ContainerTools(ProxmoxTool):
                     raw = self.proxmox.nodes(nname).lxc.get()
                 except Exception as node_error:
                     self.logger.warning(
-                        "Skipping node %s while listing containers: %s", nname, node_error
+                        "Skipping node %s while listing containers: %s",
+                        nname,
+                        node_error,
                     )
                     continue
 
@@ -166,10 +175,16 @@ class ContainerTools(ProxmoxTool):
                             continue
         return out
 
-    def _rrd_last(self, node: str, vmid: int) -> Tuple[Optional[float], Optional[int], Optional[int]]:
+    def _rrd_last(
+        self, node: str, vmid: int
+    ) -> Tuple[Optional[float], Optional[int], Optional[int]]:
         """Return (cpu_pct, mem_bytes, maxmem_bytes) from the most recent RRD sample."""
         try:
-            rrd = _as_list(self.proxmox.nodes(node).lxc(vmid).rrddata.get(timeframe="hour", ds="cpu,mem,maxmem"))
+            rrd = _as_list(
+                self.proxmox.nodes(node)
+                .lxc(vmid)
+                .rrddata.get(timeframe="hour", ds="cpu,mem,maxmem")
+            )
             if not rrd or not isinstance(rrd[-1], dict):
                 return None, None, None
             last = rrd[-1]
@@ -186,7 +201,9 @@ class ContainerTools(ProxmoxTool):
         raw_status: Dict = {}
         raw_config: Dict = {}
         try:
-            raw_status = _as_dict(self.proxmox.nodes(node).lxc(vmid).status.current.get())
+            raw_status = _as_dict(
+                self.proxmox.nodes(node).lxc(vmid).status.current.get()
+            )
         except Exception:
             raw_status = {}
         try:
@@ -219,8 +236,14 @@ class ContainerTools(ProxmoxTool):
                 lines.append(f"  - Memory: {_b2h(mem_bytes)} (unlimited)")
             else:
                 if maxmem_bytes > 0:
-                    pct_str = f" ({mem_pct:.1f}%)" if isinstance(mem_pct, (int, float)) else ""
-                    lines.append(f"  - Memory: {_b2h(mem_bytes)} / {_b2h(maxmem_bytes)}{pct_str}")
+                    pct_str = (
+                        f" ({mem_pct:.1f}%)"
+                        if isinstance(mem_pct, (int, float))
+                        else ""
+                    )
+                    lines.append(
+                        f"  - Memory: {_b2h(mem_bytes)} / {_b2h(maxmem_bytes)}{pct_str}"
+                    )
                 else:
                     lines.append(f"  - Memory: {_b2h(mem_bytes)} / 0.00 B")
             lines.append("")
@@ -257,7 +280,9 @@ class ContainerTools(ProxmoxTool):
 
                 rec: Dict = {
                     "vmid": str(vmid_val) if vmid_val is not None else None,
-                    "name": _get(ct, "name") or _get(ct, "hostname") or (f"ct-{vmid_val}" if vmid_val is not None else "ct-?"),
+                    "name": _get(ct, "name")
+                    or _get(ct, "hostname")
+                    or (f"ct-{vmid_val}" if vmid_val is not None else "ct-?"),
                     "node": nname,
                     "status": _get(ct, "status"),
                 }
@@ -280,7 +305,11 @@ class ContainerTools(ProxmoxTool):
                         maxmem_int = int(base_maxmem)
                         rec["maxmem_bytes"] = maxmem_int
                         mem_int = int(rec.get("mem_bytes") or 0)
-                        rec["mem_pct"] = round((mem_int / maxmem_int * 100.0), 2) if maxmem_int > 0 else None
+                        rec["mem_pct"] = (
+                            round((mem_int / maxmem_int * 100.0), 2)
+                            if maxmem_int > 0
+                            else None
+                        )
                     except Exception:
                         pass
                 if base_maxcpu is not None:
@@ -314,7 +343,9 @@ class ContainerTools(ProxmoxTool):
                         else:
                             memory_mib = 0
 
-                        unlimited_memory = bool(_get(raw_config, "swap", 0) == 0 and memory_mib == 0)
+                        unlimited_memory = bool(
+                            _get(raw_config, "swap", 0) == 0 and memory_mib == 0
+                        )
 
                         cfg_cores = _get(raw_config, "cores")
                         cfg_cpulimit = _get(raw_config, "cpulimit")
@@ -326,15 +357,21 @@ class ContainerTools(ProxmoxTool):
                         cores = None
 
                     # --- NEW: fallbacks for stopped / missing maxmem ---
-                    status_str = str(_get(raw_status, "status") or _get(ct, "status") or "").lower()
-                    
+                    status_str = str(
+                        _get(raw_status, "status") or _get(ct, "status") or ""
+                    ).lower()
+
                     if status_str == "stopped":
                         try:
                             mem_bytes = 0
                         except Exception:
                             mem_bytes = 0
 
-                    if (not maxmem_bytes or int(maxmem_bytes) == 0) and memory_mib and int(memory_mib) > 0:
+                    if (
+                        (not maxmem_bytes or int(maxmem_bytes) == 0)
+                        and memory_mib
+                        and int(memory_mib) > 0
+                    ):
                         try:
                             maxmem_bytes = int(memory_mib) * 1024 * 1024
                         except Exception:
@@ -351,23 +388,27 @@ class ContainerTools(ProxmoxTool):
                             maxmem_bytes = rrd_maxmem
                             if memory_mib == 0:
                                 try:
-                                    memory_mib = int(round(maxmem_bytes / (1024 * 1024)))
+                                    memory_mib = int(
+                                        round(maxmem_bytes / (1024 * 1024))
+                                    )
                                 except Exception:
                                     memory_mib = 0
 
-                    rec.update({
-                        "cores": cores,
-                        "memory": memory_mib,
-                        "cpu_pct": cpu_pct,
-                        "mem_bytes": mem_bytes,
-                        "maxmem_bytes": maxmem_bytes,
-                        "mem_pct": (
-                            round((mem_bytes / maxmem_bytes * 100.0), 2)
-                            if (maxmem_bytes and maxmem_bytes > 0)
-                            else None
-                        ),
-                        "unlimited_memory": unlimited_memory,
-                    })
+                    rec.update(
+                        {
+                            "cores": cores,
+                            "memory": memory_mib,
+                            "cpu_pct": cpu_pct,
+                            "mem_bytes": mem_bytes,
+                            "maxmem_bytes": maxmem_bytes,
+                            "mem_pct": (
+                                round((mem_bytes / maxmem_bytes * 100.0), 2)
+                                if (maxmem_bytes and maxmem_bytes > 0)
+                                else None
+                            ),
+                            "unlimited_memory": unlimited_memory,
+                        }
+                    )
 
                     if include_raw:
                         rec["raw_status"] = raw_status
@@ -418,7 +459,9 @@ class ContainerTools(ProxmoxTool):
                 node, name = tok.split("/", 1)
                 name = name.strip()
                 for n, ct in inventory:
-                    if n == node and (_get(ct, "name") == name or _get(ct, "hostname") == name):
+                    if n == node and (
+                        _get(ct, "name") == name or _get(ct, "hostname") == name
+                    ):
                         vmid = int(_get(ct, "vmid", -1))
                         if vmid >= 0:
                             resolved.append((node, vmid, name))
@@ -444,7 +487,9 @@ class ContainerTools(ProxmoxTool):
             uniq[(n, v)] = lbl
         return [(n, v, uniq[(n, v)]) for (n, v) in uniq.keys()]
 
-    def _render_action_result(self, title: str, results: List[Dict[str, Any]]) -> List[Content]:
+    def _render_action_result(
+        self, title: str, results: List[Dict[str, Any]]
+    ) -> List[Content]:
         """Pretty-print an action result; JSON stays raw."""
         lines = [title, ""]
         for r in results:
@@ -453,11 +498,15 @@ class ContainerTools(ProxmoxTool):
             vmid = r.get("vmid")
             name = r.get("name") or f"ct-{vmid}"
             msg = r.get("message") or r.get("error") or ""
-            lines.append(f"{status} {name} (ID: {vmid}, node: {node}) {('- ' + str(msg)) if msg else ''}")
+            lines.append(
+                f"{status} {name} (ID: {vmid}, node: {node}) {('- ' + str(msg)) if msg else ''}"
+            )
         return [Content(type="text", text="\n".join(lines).rstrip())]
 
     # ---------- container control tools ----------
-    def start_container(self, selector: str, format_style: str = "pretty") -> List[Content]:
+    def start_container(
+        self, selector: str, format_style: str = "pretty"
+    ) -> List[Content]:
         """
         Start LXC containers matching `selector`.
         selector examples: '123', 'pve1:123', 'pve1/name', 'name', 'pve1:101,pve2/web'
@@ -465,18 +514,28 @@ class ContainerTools(ProxmoxTool):
         try:
             targets = self._resolve_targets(selector)
             if not targets:
-                return self._err("No containers matched the selector", ValueError(selector))
+                return self._err(
+                    "No containers matched the selector", ValueError(selector)
+                )
 
             results: List[Dict[str, Any]] = []
             for node, vmid, label in targets:
                 try:
                     resp = self.proxmox.nodes(node).lxc(vmid).status.start.post()
 
-                    def retry_factory(node_name: str = node, vmid_value: int = vmid) -> Any:
-                        return self.proxmox.nodes(node_name).lxc(vmid_value).status.start.post()
+                    def retry_factory(
+                        node_name: str = node, vmid_value: int = vmid
+                    ) -> Any:
+                        return (
+                            self.proxmox.nodes(node_name)
+                            .lxc(vmid_value)
+                            .status.start.post()
+                        )
 
                     def cancel_factory(upid: str, node_name: str = node) -> Any:
-                        return self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        return (
+                            self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        )
 
                     job = self._register_background_job(
                         tool_name="start_container",
@@ -484,21 +543,34 @@ class ContainerTools(ProxmoxTool):
                         node=node,
                         upid=resp,
                         metadata={"vmid": vmid},
-                        retry_spec={"kind": "ct.start", "params": {"node": node, "vmid": vmid}},
+                        retry_spec={
+                            "kind": "ct.start",
+                            "params": {"node": node, "vmid": vmid},
+                        },
                         retry_factory=retry_factory,
                         cancel_factory=cancel_factory,
                     )
-                    results.append({
-                        "ok": True,
-                        "node": node,
-                        "vmid": vmid,
-                        "name": label,
-                        "message": resp,
-                        "task_id": str(resp),
-                        "job_id": job["job_id"] if job else None,
-                    })
+                    results.append(
+                        {
+                            "ok": True,
+                            "node": node,
+                            "vmid": vmid,
+                            "name": label,
+                            "message": resp,
+                            "task_id": str(resp),
+                            "job_id": job["job_id"] if job else None,
+                        }
+                    )
                 except Exception as e:
-                    results.append({"ok": False, "node": node, "vmid": vmid, "name": label, "error": str(e)})
+                    results.append(
+                        {
+                            "ok": False,
+                            "node": node,
+                            "vmid": vmid,
+                            "name": label,
+                            "error": str(e),
+                        }
+                    )
 
             if format_style == "json":
                 return self._json_fmt(results)
@@ -507,8 +579,13 @@ class ContainerTools(ProxmoxTool):
         except Exception as e:
             return self._err("Failed to start container(s)", e)
 
-    def stop_container(self, selector: str, graceful: bool = True, timeout_seconds: int = 10,
-                       format_style: str = "pretty") -> List[Content]:
+    def stop_container(
+        self,
+        selector: str,
+        graceful: bool = True,
+        timeout_seconds: int = 10,
+        format_style: str = "pretty",
+    ) -> List[Content]:
         """
         Stop LXC containers.
         graceful=True -> POST .../status/shutdown (graceful stop)
@@ -517,26 +594,50 @@ class ContainerTools(ProxmoxTool):
         try:
             targets = self._resolve_targets(selector)
             if not targets:
-                return self._err("No containers matched the selector", ValueError(selector))
+                return self._err(
+                    "No containers matched the selector", ValueError(selector)
+                )
 
             results: List[Dict[str, Any]] = []
             for node, vmid, label in targets:
                 try:
                     if graceful:
-                        resp = self.proxmox.nodes(node).lxc(vmid).status.shutdown.post(timeout=timeout_seconds)
+                        resp = (
+                            self.proxmox.nodes(node)
+                            .lxc(vmid)
+                            .status.shutdown.post(timeout=timeout_seconds)
+                        )
                     else:
                         resp = self.proxmox.nodes(node).lxc(vmid).status.stop.post()
 
                     retry_factory: Callable[[], Any]
                     if graceful:
-                        def retry_factory(node_name: str = node, vmid_value: int = vmid, timeout_value: int = timeout_seconds) -> Any:
-                            return self.proxmox.nodes(node_name).lxc(vmid_value).status.shutdown.post(timeout=timeout_value)
+
+                        def retry_factory(
+                            node_name: str = node,
+                            vmid_value: int = vmid,
+                            timeout_value: int = timeout_seconds,
+                        ) -> Any:
+                            return (
+                                self.proxmox.nodes(node_name)
+                                .lxc(vmid_value)
+                                .status.shutdown.post(timeout=timeout_value)
+                            )
                     else:
-                        def retry_factory(node_name: str = node, vmid_value: int = vmid) -> Any:
-                            return self.proxmox.nodes(node_name).lxc(vmid_value).status.stop.post()
+
+                        def retry_factory(
+                            node_name: str = node, vmid_value: int = vmid
+                        ) -> Any:
+                            return (
+                                self.proxmox.nodes(node_name)
+                                .lxc(vmid_value)
+                                .status.stop.post()
+                            )
 
                     def cancel_factory(upid: str, node_name: str = node) -> Any:
-                        return self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        return (
+                            self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        )
 
                     job = self._register_background_job(
                         tool_name="stop_container",
@@ -544,21 +645,39 @@ class ContainerTools(ProxmoxTool):
                         node=node,
                         upid=resp,
                         metadata={"vmid": vmid, "graceful": graceful},
-                        retry_spec={"kind": "ct.stop", "params": {"node": node, "vmid": vmid, "graceful": graceful, "timeout_seconds": timeout_seconds}},
+                        retry_spec={
+                            "kind": "ct.stop",
+                            "params": {
+                                "node": node,
+                                "vmid": vmid,
+                                "graceful": graceful,
+                                "timeout_seconds": timeout_seconds,
+                            },
+                        },
                         retry_factory=retry_factory,
                         cancel_factory=cancel_factory,
                     )
-                    results.append({
-                        "ok": True,
-                        "node": node,
-                        "vmid": vmid,
-                        "name": label,
-                        "message": resp,
-                        "task_id": str(resp),
-                        "job_id": job["job_id"] if job else None,
-                    })
+                    results.append(
+                        {
+                            "ok": True,
+                            "node": node,
+                            "vmid": vmid,
+                            "name": label,
+                            "message": resp,
+                            "task_id": str(resp),
+                            "job_id": job["job_id"] if job else None,
+                        }
+                    )
                 except Exception as e:
-                    results.append({"ok": False, "node": node, "vmid": vmid, "name": label, "error": str(e)})
+                    results.append(
+                        {
+                            "ok": False,
+                            "node": node,
+                            "vmid": vmid,
+                            "name": label,
+                            "error": str(e),
+                        }
+                    )
 
             if format_style == "json":
                 return self._json_fmt(results)
@@ -567,26 +686,37 @@ class ContainerTools(ProxmoxTool):
         except Exception as e:
             return self._err("Failed to stop container(s)", e)
 
-    def restart_container(self, selector: str, timeout_seconds: int = 10,
-                          format_style: str = "pretty") -> List[Content]:
+    def restart_container(
+        self, selector: str, timeout_seconds: int = 10, format_style: str = "pretty"
+    ) -> List[Content]:
         """
         Restart LXC containers via POST .../status/reboot.
         """
         try:
             targets = self._resolve_targets(selector)
             if not targets:
-                return self._err("No containers matched the selector", ValueError(selector))
+                return self._err(
+                    "No containers matched the selector", ValueError(selector)
+                )
 
             results: List[Dict[str, Any]] = []
             for node, vmid, label in targets:
                 try:
                     resp = self.proxmox.nodes(node).lxc(vmid).status.reboot.post()
 
-                    def retry_factory(node_name: str = node, vmid_value: int = vmid) -> Any:
-                        return self.proxmox.nodes(node_name).lxc(vmid_value).status.reboot.post()
+                    def retry_factory(
+                        node_name: str = node, vmid_value: int = vmid
+                    ) -> Any:
+                        return (
+                            self.proxmox.nodes(node_name)
+                            .lxc(vmid_value)
+                            .status.reboot.post()
+                        )
 
                     def cancel_factory(upid: str, node_name: str = node) -> Any:
-                        return self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        return (
+                            self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        )
 
                     job = self._register_background_job(
                         tool_name="restart_container",
@@ -594,21 +724,34 @@ class ContainerTools(ProxmoxTool):
                         node=node,
                         upid=resp,
                         metadata={"vmid": vmid},
-                        retry_spec={"kind": "ct.restart", "params": {"node": node, "vmid": vmid}},
+                        retry_spec={
+                            "kind": "ct.restart",
+                            "params": {"node": node, "vmid": vmid},
+                        },
                         retry_factory=retry_factory,
                         cancel_factory=cancel_factory,
                     )
-                    results.append({
-                        "ok": True,
-                        "node": node,
-                        "vmid": vmid,
-                        "name": label,
-                        "message": resp,
-                        "task_id": str(resp),
-                        "job_id": job["job_id"] if job else None,
-                    })
+                    results.append(
+                        {
+                            "ok": True,
+                            "node": node,
+                            "vmid": vmid,
+                            "name": label,
+                            "message": resp,
+                            "task_id": str(resp),
+                            "job_id": job["job_id"] if job else None,
+                        }
+                    )
                 except Exception as e:
-                    results.append({"ok": False, "node": node, "vmid": vmid, "name": label, "error": str(e)})
+                    results.append(
+                        {
+                            "ok": False,
+                            "node": node,
+                            "vmid": vmid,
+                            "name": label,
+                            "error": str(e),
+                        }
+                    )
 
             if format_style == "json":
                 return self._json_fmt(results)
@@ -668,7 +811,7 @@ class ContainerTools(ProxmoxTool):
                 if str(_get(ct, "vmid")) == str(vmid):
                     return self._err(
                         f"Container with ID {vmid} already exists on node {n}",
-                        ValueError(f"VMID {vmid} already in use")
+                        ValueError(f"VMID {vmid} already in use"),
                     )
 
             # Validate node exists
@@ -677,7 +820,7 @@ class ContainerTools(ProxmoxTool):
             if node not in node_names:
                 return self._err(
                     f"Node '{node}' not found",
-                    ValueError(f"Available nodes: {', '.join(node_names)}")
+                    ValueError(f"Available nodes: {', '.join(node_names)}"),
                 )
 
             # Auto-detect storage if not specified
@@ -733,7 +876,10 @@ class ContainerTools(ProxmoxTool):
             secret_fields = {"password", "ssh-public-keys"}
             retry_spec = None
             if not secret_fields.intersection(ct_config):
-                retry_spec = {"kind": "ct.create", "params": {"node": node, "ct_config": dict(ct_config)}}
+                retry_spec = {
+                    "kind": "ct.create",
+                    "params": {"node": node, "ct_config": dict(ct_config)},
+                }
 
             def retry_factory() -> Any:
                 return self.proxmox.nodes(node).lxc.create(**ct_config)
@@ -803,11 +949,18 @@ class ContainerTools(ProxmoxTool):
         try:
             targets = self._resolve_targets(selector)
             if not targets:
-                return self._err("No containers matched the selector", ValueError(selector))
+                return self._err(
+                    "No containers matched the selector", ValueError(selector)
+                )
 
             results: List[Dict[str, Any]] = []
             for node, vmid, label in targets:
-                rec: Dict[str, Any] = {"ok": True, "node": node, "vmid": vmid, "name": label}
+                rec: Dict[str, Any] = {
+                    "ok": True,
+                    "node": node,
+                    "vmid": vmid,
+                    "name": label,
+                }
 
                 try:
                     # Check container status
@@ -820,7 +973,9 @@ class ContainerTools(ProxmoxTool):
                     if current_status == "running":
                         if not force:
                             rec["ok"] = False
-                            rec["error"] = "Container is running. Use force=True to stop and delete."
+                            rec[
+                                "error"
+                            ] = "Container is running. Use force=True to stop and delete."
                             results.append(rec)
                             continue
                         # Force stop the container first
@@ -833,11 +988,15 @@ class ContainerTools(ProxmoxTool):
                     task_result = self.proxmox.nodes(node).lxc(vmid).delete()
                     rec["task_id"] = str(task_result)
 
-                    def retry_factory(node_name: str = node, vmid_value: int = vmid) -> Any:
+                    def retry_factory(
+                        node_name: str = node, vmid_value: int = vmid
+                    ) -> Any:
                         return self.proxmox.nodes(node_name).lxc(vmid_value).delete()
 
                     def cancel_factory(upid: str, node_name: str = node) -> Any:
-                        return self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        return (
+                            self.proxmox.nodes(node_name).tasks(upid).status.stop.post()
+                        )
 
                     job = self._register_background_job(
                         tool_name="delete_container",
@@ -845,7 +1004,10 @@ class ContainerTools(ProxmoxTool):
                         node=node,
                         upid=task_result,
                         metadata={"vmid": vmid, "force": force},
-                        retry_spec={"kind": "ct.delete", "params": {"node": node, "vmid": vmid}},
+                        retry_spec={
+                            "kind": "ct.delete",
+                            "params": {"node": node, "vmid": vmid},
+                        },
                         retry_factory=retry_factory,
                         cancel_factory=cancel_factory,
                     )
@@ -889,7 +1051,9 @@ class ContainerTools(ProxmoxTool):
             )
         try:
             if self.command_policy is not None:
-                decision = self.command_policy.evaluate(command, approval_token=approval_token)
+                decision = self.command_policy.evaluate(
+                    command, approval_token=approval_token
+                )
                 if not decision.allowed:
                     policy_result = ToolResult(
                         success=False,
@@ -901,7 +1065,10 @@ class ContainerTools(ProxmoxTool):
 
             targets = self._resolve_targets(selector)
             if not targets:
-                return self._err("execute_command", ValueError(f"No container matched selector: {selector}"))
+                return self._err(
+                    "execute_command",
+                    ValueError(f"No container matched selector: {selector}"),
+                )
             if len(targets) > 1:
                 return self._err(
                     "execute_command",
@@ -913,6 +1080,7 @@ class ContainerTools(ProxmoxTool):
             node, vmid, _label = targets[0]
             exec_result = self.console_manager.execute_command(node, str(vmid), command)
             import json as _json
+
             return [Content(type="text", text=_json.dumps(exec_result, indent=2))]
         except Exception as e:
             return self._err("execute_command", e)
@@ -946,7 +1114,9 @@ class ContainerTools(ProxmoxTool):
         """
         try:
             self.proxmox.nodes(node).lxc(vmid).config.put(description=description)
-            return self._json_fmt({"vmid": vmid, "node": node, "description": description})
+            return self._json_fmt(
+                {"vmid": vmid, "node": node, "description": description}
+            )
         except Exception as e:
             return self._err("set_container_description", e)
 
@@ -1035,7 +1205,9 @@ class ContainerTools(ProxmoxTool):
             if not mkdir_data.get("success"):
                 return self._err(
                     "update_container_ssh_keys",
-                    RuntimeError(f"mkdir /root/.ssh failed: {mkdir_data.get('output')}"),
+                    RuntimeError(
+                        f"mkdir /root/.ssh failed: {mkdir_data.get('output')}"
+                    ),
                 )
 
             # Write keys - use a Python-safe delimiter to avoid shell quoting issues
@@ -1086,11 +1258,18 @@ class ContainerTools(ProxmoxTool):
         try:
             targets = self._resolve_targets(selector)
             if not targets:
-                return self._err("No containers matched the selector", ValueError(selector))
+                return self._err(
+                    "No containers matched the selector", ValueError(selector)
+                )
 
             results: List[Dict[str, Any]] = []
             for node, vmid, label in targets:
-                rec: Dict[str, Any] = {"ok": True, "node": node, "vmid": vmid, "name": label}
+                rec: Dict[str, Any] = {
+                    "ok": True,
+                    "node": node,
+                    "vmid": vmid,
+                    "name": label,
+                }
                 changes: List[str] = []
 
                 try:
@@ -1111,7 +1290,9 @@ class ContainerTools(ProxmoxTool):
                     if disk_gb is not None:
                         size_str = f"+{disk_gb}G"
                         # Use PUT for disk resize - some Proxmox versions reject POST
-                        self.proxmox.nodes(node).lxc(vmid).resize.put(disk=disk, size=size_str)
+                        self.proxmox.nodes(node).lxc(vmid).resize.put(
+                            disk=disk, size=size_str
+                        )
                         changes.append(f"{disk}+={disk_gb}G")
 
                     rec["message"] = ", ".join(changes) if changes else "no changes"

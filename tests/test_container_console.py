@@ -12,8 +12,10 @@ from proxmox_mcp.tools.console.container_manager import ContainerConsoleManager
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
+
 class _SSHConfig:
     """Minimal stand-in for SSHConfig."""
+
     user = "root"
     port = 22
     key_file = "/home/user/.ssh/proxmox_key"
@@ -49,7 +51,10 @@ def manager(mock_proxmox, ssh_cfg):
 # Tests
 # ---------------------------------------------------------------------------
 
-def _make_ssh_client(stdout_data: bytes = b"", stderr_data: bytes = b"", exit_code: int = 0):
+
+def _make_ssh_client(
+    stdout_data: bytes = b"", stderr_data: bytes = b"", exit_code: int = 0
+):
     """Build a mock paramiko.SSHClient that returns the given output."""
     channel = MagicMock()
     channel.recv_exit_status.return_value = exit_code
@@ -89,7 +94,9 @@ def test_execute_command_success(MockSSHClient, manager):
 
 @patch("proxmox_mcp.tools.console.container_manager.paramiko.RejectPolicy")
 @patch("proxmox_mcp.tools.console.container_manager.paramiko.SSHClient")
-def test_paramiko_always_rejects_unknown_host_keys(MockSSHClient, MockRejectPolicy, manager, ssh_cfg):
+def test_paramiko_always_rejects_unknown_host_keys(
+    MockSSHClient, MockRejectPolicy, manager, ssh_cfg
+):
     ssh_cfg.strict_host_key_checking = False
     mock_client = _make_ssh_client(stdout_data=b"ok\n", exit_code=0)
     MockSSHClient.return_value = mock_client
@@ -98,12 +105,16 @@ def test_paramiko_always_rejects_unknown_host_keys(MockSSHClient, MockRejectPoli
     manager.execute_command("pve1", "101", "echo ok")
 
     mock_client.load_system_host_keys.assert_called_once()
-    mock_client.set_missing_host_key_policy.assert_called_once_with(MockRejectPolicy.return_value)
+    mock_client.set_missing_host_key_policy.assert_called_once_with(
+        MockRejectPolicy.return_value
+    )
 
 
 @patch("proxmox_mcp.tools.console.container_manager.paramiko.RejectPolicy")
 @patch("proxmox_mcp.tools.console.container_manager.paramiko.SSHClient")
-def test_paramiko_loads_explicit_known_hosts_file(MockSSHClient, MockRejectPolicy, manager, ssh_cfg):
+def test_paramiko_loads_explicit_known_hosts_file(
+    MockSSHClient, MockRejectPolicy, manager, ssh_cfg
+):
     ssh_cfg.known_hosts_file = "~/known_hosts.custom"
     mock_client = _make_ssh_client(stdout_data=b"ok\n", exit_code=0)
     MockSSHClient.return_value = mock_client
@@ -112,7 +123,9 @@ def test_paramiko_loads_explicit_known_hosts_file(MockSSHClient, MockRejectPolic
     manager.execute_command("pve1", "101", "echo ok")
 
     mock_client.load_host_keys.assert_called_once()
-    mock_client.set_missing_host_key_policy.assert_called_once_with(MockRejectPolicy.return_value)
+    mock_client.set_missing_host_key_policy.assert_called_once_with(
+        MockRejectPolicy.return_value
+    )
 
 
 @patch("proxmox_mcp.tools.console.container_manager.paramiko.SSHClient")
@@ -141,6 +154,7 @@ def test_execute_command_container_not_running(manager, mock_proxmox):
 def test_execute_command_ssh_failure(MockSSHClient, manager):
     """SSH connection error is wrapped in RuntimeError."""
     import paramiko
+
     mock_client = MagicMock()
     mock_client.connect.side_effect = paramiko.SSHException("Connection refused")
     MockSSHClient.return_value = mock_client
@@ -208,7 +222,9 @@ def test_execute_command_via_system_ssh(mock_run, manager, ssh_cfg):
 
 
 @patch("proxmox_mcp.tools.console.container_manager.subprocess.run")
-def test_system_ssh_uses_double_dash_for_dash_prefixed_target(mock_run, manager, ssh_cfg):
+def test_system_ssh_uses_double_dash_for_dash_prefixed_target(
+    mock_run, manager, ssh_cfg
+):
     """A host_overrides value starting with '-' must not be parsed as an SSH option."""
     ssh_cfg.prefer_ssh_client = True
     # Worst-case attacker-controlled override: would be -oProxyCommand=... without `--`.
@@ -228,6 +244,7 @@ def test_system_ssh_uses_double_dash_for_dash_prefixed_target(mock_run, manager,
 # ---------------------------------------------------------------------------
 # Windows-compatibility regression tests (issue #100)
 # ---------------------------------------------------------------------------
+
 
 @patch("proxmox_mcp.tools.console.container_manager.subprocess.run")
 def test_system_ssh_passes_user_with_dash_l(mock_run, manager, ssh_cfg):
@@ -300,6 +317,6 @@ def test_system_ssh_uses_batch_mode_and_accept_new(mock_run, manager, ssh_cfg):
 
     dash_index = ssh_command.index("--")
     for opt in ("BatchMode=yes", "StrictHostKeyChecking=accept-new"):
-        assert ssh_command.index(opt) < dash_index, (
-            f"{opt} must be passed as an SSH option, not as part of the target"
-        )
+        assert (
+            ssh_command.index(opt) < dash_index
+        ), f"{opt} must be passed as an SSH option, not as part of the target"

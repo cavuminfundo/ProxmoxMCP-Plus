@@ -17,7 +17,9 @@ job_id* - Stable job identifier returned by long-running tools
 refresh - Poll Proxmox before returning the job state (default: false)
 """
 
-POLL_JOB_DESC = """Poll the backing Proxmox task for a tracked job and refresh status/progress."""
+POLL_JOB_DESC = (
+    """Poll the backing Proxmox task for a tracked job and refresh status/progress."""
+)
 
 CANCEL_JOB_DESC = """Best-effort cancel for a tracked long-running job.
 
@@ -126,7 +128,6 @@ description* - New description text (can be multi-line or Markdown)
 
 Example:
 set_vm_description node='pve' vmid='100' description='Database server'"""
-
 
 
 # VM tool descriptions

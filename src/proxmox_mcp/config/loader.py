@@ -46,7 +46,9 @@ def _apply_mcp_env_overrides(config_data: Dict[str, Any]) -> None:
         "MCP_TRANSPORT": ("transport", str),
     }
     overrides = {
-        key: (coerce(os.environ[env_name]) if coerce is not str else os.environ[env_name])
+        key: (
+            coerce(os.environ[env_name]) if coerce is not str else os.environ[env_name]
+        )
         for env_name, (key, coerce) in env_map.items()
         if env_name in os.environ
     }
@@ -65,7 +67,9 @@ def _apply_mcp_env_overrides(config_data: Dict[str, Any]) -> None:
 
     mcp_config = config_data.setdefault("mcp", {})
     if not isinstance(mcp_config, dict):
-        raise ValueError("mcp config must be a JSON object when MCP_* overrides are used")
+        raise ValueError(
+            "mcp config must be a JSON object when MCP_* overrides are used"
+        )
 
     if "transport" in overrides and isinstance(overrides["transport"], str):
         overrides["transport"] = overrides["transport"].strip().upper()
@@ -80,12 +84,12 @@ def load_config(config_path: Optional[str] = None) -> Config:
     2. Loads JSON configuration file
     3. Validates required fields are present
     4. Converts to typed Config object using Pydantic
-    
+
     Configuration must include:
     - Proxmox connection settings (host, port, etc.)
     - Authentication credentials (user, token)
     - Logging configuration
-    
+
     Args:
         config_path: Path to the JSON configuration file
                     If not provided, raises ValueError
@@ -121,13 +125,19 @@ def load_config(config_path: Optional[str] = None) -> Config:
         # Fallback to environment variables
         log_level_raw = os.getenv("LOG_LEVEL")
         command_policy = {
-            'mode': os.getenv("COMMAND_POLICY_MODE", "deny_all"),
-            'allow_patterns': _parse_csv_env("COMMAND_POLICY_ALLOW_PATTERNS") or [],
-            'require_approval_token': _bool_env("COMMAND_POLICY_REQUIRE_APPROVAL_TOKEN"),
-            'approval_token': os.getenv("COMMAND_POLICY_APPROVAL_TOKEN"),
-            'high_risk_mode': os.getenv("COMMAND_POLICY_HIGH_RISK_MODE", "audit_only"),
-            'high_risk_require_approval_token': _bool_env("COMMAND_POLICY_HIGH_RISK_REQUIRE_APPROVAL_TOKEN"),
-            'high_risk_approval_token': os.getenv("COMMAND_POLICY_HIGH_RISK_APPROVAL_TOKEN"),
+            "mode": os.getenv("COMMAND_POLICY_MODE", "deny_all"),
+            "allow_patterns": _parse_csv_env("COMMAND_POLICY_ALLOW_PATTERNS") or [],
+            "require_approval_token": _bool_env(
+                "COMMAND_POLICY_REQUIRE_APPROVAL_TOKEN"
+            ),
+            "approval_token": os.getenv("COMMAND_POLICY_APPROVAL_TOKEN"),
+            "high_risk_mode": os.getenv("COMMAND_POLICY_HIGH_RISK_MODE", "audit_only"),
+            "high_risk_require_approval_token": _bool_env(
+                "COMMAND_POLICY_HIGH_RISK_REQUIRE_APPROVAL_TOKEN"
+            ),
+            "high_risk_approval_token": os.getenv(
+                "COMMAND_POLICY_HIGH_RISK_APPROVAL_TOKEN"
+            ),
         }
         deny_patterns = _parse_csv_env("COMMAND_POLICY_DENY_PATTERNS")
         if deny_patterns is not None:
@@ -137,46 +147,61 @@ def load_config(config_path: Optional[str] = None) -> Config:
             command_policy["high_risk_operations"] = high_risk_operations
 
         config_data = {
-            'proxmox': {
-                'host': os.getenv("PROXMOX_HOST"),
-                'port': int(os.getenv("PROXMOX_PORT", "8006")),
-                'timeout': int(os.getenv("PROXMOX_TIMEOUT", "30")),
-                'verify_ssl': _bool_env("PROXMOX_VERIFY_SSL", True),
-                'service': os.getenv("PROXMOX_SERVICE", "PVE")
+            "proxmox": {
+                "host": os.getenv("PROXMOX_HOST"),
+                "port": int(os.getenv("PROXMOX_PORT", "8006")),
+                "timeout": int(os.getenv("PROXMOX_TIMEOUT", "30")),
+                "verify_ssl": _bool_env("PROXMOX_VERIFY_SSL", True),
+                "service": os.getenv("PROXMOX_SERVICE", "PVE"),
             },
-            'auth': {
-                'user': os.getenv("PROXMOX_USER"),
-                'token_name': os.getenv("PROXMOX_TOKEN_NAME"),
-                'token_value': os.getenv("PROXMOX_TOKEN_VALUE")
+            "auth": {
+                "user": os.getenv("PROXMOX_USER"),
+                "token_name": os.getenv("PROXMOX_TOKEN_NAME"),
+                "token_value": os.getenv("PROXMOX_TOKEN_VALUE"),
             },
-            'api_tunnel': {
-                'enabled': _bool_env("PROXMOX_API_TUNNEL_ENABLED"),
-                'ssh_host': os.getenv("PROXMOX_API_TUNNEL_SSH_HOST"),
-                'local_host': os.getenv("PROXMOX_API_TUNNEL_LOCAL_HOST", "127.0.0.1"),
-                'local_port': int(os.getenv("PROXMOX_API_TUNNEL_LOCAL_PORT", os.getenv("PROXMOX_PORT", "8006"))),
-                'remote_host': os.getenv("PROXMOX_API_TUNNEL_REMOTE_HOST", "127.0.0.1"),
-                'remote_port': int(os.getenv("PROXMOX_API_TUNNEL_REMOTE_PORT", "8006")),
-                'connect_timeout': int(os.getenv("PROXMOX_API_TUNNEL_CONNECT_TIMEOUT", "15")),
+            "api_tunnel": {
+                "enabled": _bool_env("PROXMOX_API_TUNNEL_ENABLED"),
+                "ssh_host": os.getenv("PROXMOX_API_TUNNEL_SSH_HOST"),
+                "local_host": os.getenv("PROXMOX_API_TUNNEL_LOCAL_HOST", "127.0.0.1"),
+                "local_port": int(
+                    os.getenv(
+                        "PROXMOX_API_TUNNEL_LOCAL_PORT",
+                        os.getenv("PROXMOX_PORT", "8006"),
+                    )
+                ),
+                "remote_host": os.getenv("PROXMOX_API_TUNNEL_REMOTE_HOST", "127.0.0.1"),
+                "remote_port": int(os.getenv("PROXMOX_API_TUNNEL_REMOTE_PORT", "8006")),
+                "connect_timeout": int(
+                    os.getenv("PROXMOX_API_TUNNEL_CONNECT_TIMEOUT", "15")
+                ),
             },
-            'logging': {
-                'level': log_level_raw.upper() if log_level_raw and not log_level_raw.startswith("${") else "INFO"
+            "logging": {
+                "level": log_level_raw.upper()
+                if log_level_raw and not log_level_raw.startswith("${")
+                else "INFO"
             },
-            'mcp': {
-                'host': os.getenv("MCP_HOST", "0.0.0.0"),
-                'port': int(os.getenv("MCP_PORT", "8000")),
-                'transport': os.getenv("MCP_TRANSPORT", "stdio").upper() if os.getenv("MCP_TRANSPORT") else "STDIO",
+            "mcp": {
+                "host": os.getenv("MCP_HOST", "0.0.0.0"),
+                "port": int(os.getenv("MCP_PORT", "8000")),
+                "transport": os.getenv("MCP_TRANSPORT", "stdio").upper()
+                if os.getenv("MCP_TRANSPORT")
+                else "STDIO",
             },
-            'security': {
-                'dev_mode': _bool_env("PROXMOX_DEV_MODE"),
+            "security": {
+                "dev_mode": _bool_env("PROXMOX_DEV_MODE"),
             },
-            'jobs': {
-                'sqlite_path': os.getenv("PROXMOX_JOBS_SQLITE_PATH", "proxmox-jobs.sqlite3"),
+            "jobs": {
+                "sqlite_path": os.getenv(
+                    "PROXMOX_JOBS_SQLITE_PATH", "proxmox-jobs.sqlite3"
+                ),
             },
-            'command_policy': command_policy,
+            "command_policy": command_policy,
         }
-        
+
         api_tunnel_config = config_data.get("api_tunnel")
-        if isinstance(api_tunnel_config, dict) and not api_tunnel_config.get("ssh_host"):
+        if isinstance(api_tunnel_config, dict) and not api_tunnel_config.get(
+            "ssh_host"
+        ):
             config_data.pop("api_tunnel", None)
     else:
         try:
@@ -192,9 +217,11 @@ def load_config(config_path: Optional[str] = None) -> Config:
     _apply_mcp_env_overrides(config_data)
 
     # Final validation check
-    if not config_data.get('proxmox', {}).get('host'):
-        raise ValueError("Proxmox host must be provided (via config file or PROXMOX_HOST env var)")
-    if not config_data.get('auth', {}).get('user'):
+    if not config_data.get("proxmox", {}).get("host"):
+        raise ValueError(
+            "Proxmox host must be provided (via config file or PROXMOX_HOST env var)"
+        )
+    if not config_data.get("auth", {}).get("user"):
         raise ValueError("Authentication credentials must be provided")
 
     try:

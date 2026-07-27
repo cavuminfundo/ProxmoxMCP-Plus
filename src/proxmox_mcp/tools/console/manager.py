@@ -26,13 +26,13 @@ def _log_safe(value: object, max_length: int = 200) -> str:
 
 class VMConsoleManager:
     """Manager class for VM console operations.
-    
+
     Provides functionality for:
     - Executing commands in VM consoles
     - Managing command execution lifecycle
     - Handling command output and errors
     - Monitoring execution status
-    
+
     Uses QEMU guest agent for reliable command execution with:
     - VM state verification before execution
     - Asynchronous command processing
@@ -66,7 +66,9 @@ class VMConsoleManager:
             try:
                 self.logger.debug("Getting command status for pid=%s", _log_safe(pid))
                 console = endpoint("exec-status").get(pid=pid)
-                self.logger.debug("Raw exec-status response type: %s", type(console).__name__)
+                self.logger.debug(
+                    "Raw exec-status response type: %s", type(console).__name__
+                )
                 if not console:
                     raise RuntimeError("No response from exec-status")
                 if not isinstance(console, dict):
@@ -78,7 +80,11 @@ class VMConsoleManager:
                     }
                 last_status = console
             except Exception as e:
-                self.logger.error("Failed to get command status for pid=%s: %s", _log_safe(pid), _log_safe(e))
+                self.logger.error(
+                    "Failed to get command status for pid=%s: %s",
+                    _log_safe(pid),
+                    _log_safe(e),
+                )
                 raise RuntimeError(f"Failed to get command status: {str(e)}")
 
             if last_status.get("exited", 0):
@@ -97,7 +103,9 @@ class VMConsoleManager:
 
             await asyncio.sleep(min(poll_interval_seconds, remaining))
 
-    async def execute_command(self, node: str, vmid: str, command: str) -> Dict[str, Any]:
+    async def execute_command(
+        self, node: str, vmid: str, command: str
+    ) -> Dict[str, Any]:
         """Execute a command in a VM's console via QEMU guest agent.
 
         Implements a two-phase command execution process:
@@ -105,12 +113,12 @@ class VMConsoleManager:
            - Verifies VM exists and is running
            - Initiates command execution via guest agent
            - Captures command PID for tracking
-        
+
         2. Result Collection:
            - Monitors command execution status
            - Captures command output and errors
            - Handles completion status
-        
+
         Requirements:
         - VM must be running
         - QEMU guest agent must be installed and active
@@ -144,35 +152,71 @@ class VMConsoleManager:
             # Verify VM exists and is running
             vm_status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
             if vm_status["status"] != "running":
-                self.logger.error("Failed to execute command on VM %s: VM is not running", _log_safe(vmid))
+                self.logger.error(
+                    "Failed to execute command on VM %s: VM is not running",
+                    _log_safe(vmid),
+                )
                 raise ValueError(f"VM {vmid} on node {node} is not running")
 
             # Get VM's console
-            self.logger.info("Executing command on VM %s (node: %s)", _log_safe(vmid), _log_safe(node))
-            
+            self.logger.info(
+                "Executing command on VM %s (node: %s)",
+                _log_safe(vmid),
+                _log_safe(node),
+            )
+
             # Get the API endpoint
             # Use the guest agent exec endpoint
             endpoint = self.proxmox.nodes(node).qemu(vmid).agent
-            self.logger.debug("Using VM guest-agent endpoint for VM %s on node %s", _log_safe(vmid), _log_safe(node))
-            
+            self.logger.debug(
+                "Using VM guest-agent endpoint for VM %s on node %s",
+                _log_safe(vmid),
+                _log_safe(node),
+            )
+
             # Execute the command using two-step process
             try:
                 # Start command execution
                 self.logger.info("Starting command execution...")
                 try:
-                    self.logger.debug("Executing command via guest agent for VM %s on node %s", _log_safe(vmid), _log_safe(node))
+                    self.logger.debug(
+                        "Executing command via guest agent for VM %s on node %s",
+                        _log_safe(vmid),
+                        _log_safe(node),
+                    )
                     exec_result = endpoint("exec").post(command=command)
-                    self.logger.debug("Raw exec response keys: %s", sorted(exec_result.keys()) if isinstance(exec_result, dict) else type(exec_result).__name__)
-                    self.logger.info("Command started on VM %s with pid=%s", _log_safe(vmid), _log_safe(exec_result.get("pid") if isinstance(exec_result, dict) else "unknown"))
+                    self.logger.debug(
+                        "Raw exec response keys: %s",
+                        sorted(exec_result.keys())
+                        if isinstance(exec_result, dict)
+                        else type(exec_result).__name__,
+                    )
+                    self.logger.info(
+                        "Command started on VM %s with pid=%s",
+                        _log_safe(vmid),
+                        _log_safe(
+                            exec_result.get("pid")
+                            if isinstance(exec_result, dict)
+                            else "unknown"
+                        ),
+                    )
                 except Exception as e:
-                    self.logger.error("Failed to start command on VM %s: %s", _log_safe(vmid), _log_safe(e))
+                    self.logger.error(
+                        "Failed to start command on VM %s: %s",
+                        _log_safe(vmid),
+                        _log_safe(e),
+                    )
                     raise RuntimeError(f"Failed to start command: {str(e)}")
 
-                if 'pid' not in exec_result:
+                if "pid" not in exec_result:
                     raise RuntimeError("No PID returned from command execution")
 
-                pid = exec_result['pid']
-                self.logger.info("Waiting for command completion on VM %s (pid=%s)", _log_safe(vmid), _log_safe(pid))
+                pid = exec_result["pid"]
+                self.logger.info(
+                    "Waiting for command completion on VM %s (pid=%s)",
+                    _log_safe(vmid),
+                    _log_safe(pid),
+                )
 
                 console = await self._wait_for_exec_status(endpoint, pid)
                 if isinstance(console, dict):
@@ -184,12 +228,23 @@ class VMConsoleManager:
                         _log_safe(console.get("timed_out", False)),
                     )
                 else:
-                    self.logger.info("Command completed on VM %s with non-dict status", _log_safe(vmid))
+                    self.logger.info(
+                        "Command completed on VM %s with non-dict status",
+                        _log_safe(vmid),
+                    )
             except Exception as e:
-                self.logger.error("Guest-agent API call failed on VM %s: %s", _log_safe(vmid), _log_safe(e))
+                self.logger.error(
+                    "Guest-agent API call failed on VM %s: %s",
+                    _log_safe(vmid),
+                    _log_safe(e),
+                )
                 raise RuntimeError(f"API call failed: {str(e)}")
-            self.logger.debug("Raw API response type for VM %s: %s", _log_safe(vmid), type(console).__name__)
-            
+            self.logger.debug(
+                "Raw API response type for VM %s: %s",
+                _log_safe(vmid),
+                type(console).__name__,
+            )
+
             # Handle different response structures
             if isinstance(console, dict):
                 # Handle exec-status response format
@@ -198,25 +253,43 @@ class VMConsoleManager:
                 exit_code = console.get("exitcode", 0)
                 exited = console.get("exited", 0)
                 timed_out = bool(console.get("timed_out", False))
-                
+
                 if timed_out:
                     self.logger.warning("Command did not complete before timeout")
                 elif not exited:
                     self.logger.warning("Command may not have completed")
             else:
                 # Some versions might return data differently
-                self.logger.debug("Unexpected command response type for VM %s: %s", _log_safe(vmid), type(console).__name__)
+                self.logger.debug(
+                    "Unexpected command response type for VM %s: %s",
+                    _log_safe(vmid),
+                    type(console).__name__,
+                )
                 output = str(console)
                 error = ""
                 exit_code = 0
                 exited = 1
                 timed_out = False
-            
-            self.logger.debug("Processed command output length for VM %s: %s", _log_safe(vmid), len(str(output)))
-            self.logger.debug("Processed command error length for VM %s: %s", _log_safe(vmid), len(str(error)))
-            self.logger.debug("Processed exit code for VM %s: %s", _log_safe(vmid), _log_safe(exit_code))
-            
-            self.logger.debug("Executed command on VM %s (node: %s)", _log_safe(vmid), _log_safe(node))
+
+            self.logger.debug(
+                "Processed command output length for VM %s: %s",
+                _log_safe(vmid),
+                len(str(output)),
+            )
+            self.logger.debug(
+                "Processed command error length for VM %s: %s",
+                _log_safe(vmid),
+                len(str(error)),
+            )
+            self.logger.debug(
+                "Processed exit code for VM %s: %s",
+                _log_safe(vmid),
+                _log_safe(exit_code),
+            )
+
+            self.logger.debug(
+                "Executed command on VM %s (node: %s)", _log_safe(vmid), _log_safe(node)
+            )
             try:
                 exit_code_int = int(exit_code)
             except (TypeError, ValueError):
@@ -235,7 +308,9 @@ class VMConsoleManager:
             # Re-raise ValueError for VM not running
             raise
         except Exception as e:
-            self.logger.error("Failed to execute command on VM %s: %s", _log_safe(vmid), _log_safe(e))
+            self.logger.error(
+                "Failed to execute command on VM %s: %s", _log_safe(vmid), _log_safe(e)
+            )
             if "not found" in str(e).lower():
                 raise ValueError(f"VM {vmid} not found on node {node}")
             raise RuntimeError(f"Failed to execute command: {str(e)}")

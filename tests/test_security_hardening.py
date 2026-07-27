@@ -119,7 +119,10 @@ def test_container_command_logging_redacts_command(caplog):
     client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
     caplog.set_level(logging.INFO, logger="proxmox-mcp.ct-console")
-    with patch("proxmox_mcp.tools.console.container_manager.paramiko.SSHClient", return_value=client):
+    with patch(
+        "proxmox_mcp.tools.console.container_manager.paramiko.SSHClient",
+        return_value=client,
+    ):
         result = manager.execute_command("pve1", "101", "echo super-secret")
 
     assert result["output"] == "secret-output\n"
@@ -177,7 +180,9 @@ def test_vm_command_logging_redacts_command_and_output(caplog):
         "exitcode": 0,
         "exited": 1,
     }
-    endpoint.side_effect = lambda action: exec_endpoint if action == "exec" else status_endpoint
+    endpoint.side_effect = (
+        lambda action: exec_endpoint if action == "exec" else status_endpoint
+    )
     proxmox.nodes.return_value.qemu.return_value.agent = endpoint
     manager = VMConsoleManager(proxmox)
 

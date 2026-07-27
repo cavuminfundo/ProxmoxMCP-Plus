@@ -14,15 +14,16 @@ from typing import List
 from mcp.types import TextContent as Content
 from proxmox_mcp.tools.base import ProxmoxTool
 
+
 class ClusterTools(ProxmoxTool):
     """Tools for managing Proxmox cluster.
-    
+
     Provides functionality for:
     - Monitoring cluster health and status
     - Tracking quorum and node membership
     - Managing cluster-wide resources
     - Verifying cluster configuration
-    
+
     Essential for maintaining cluster health and ensuring
     proper operation of the Proxmox environment.
     """
@@ -35,7 +36,7 @@ class ClusterTools(ProxmoxTool):
         - Quorum status (essential for cluster operations)
         - Active node count and health
         - Resource distribution and status
-        
+
         This information is critical for:
         - Ensuring cluster stability
         - Monitoring node membership
@@ -70,13 +71,17 @@ class ClusterTools(ProxmoxTool):
             result = self._call_with_retry(
                 "get cluster status", lambda: self.proxmox.cluster.status.get()
             )
-        
+
             first_item = result[0] if result and len(result) > 0 else {}
             status = {
                 "name": first_item.get("name") if first_item else None,
                 "quorum": first_item.get("quorate") if first_item else None,
-                "nodes": len([node for node in result if node.get("type") == "node"]) if result else 0,
-                "resources": [res for res in result if res.get("type") == "resource"] if result else []
+                "nodes": len([node for node in result if node.get("type") == "node"])
+                if result
+                else 0,
+                "resources": [res for res in result if res.get("type") == "resource"]
+                if result
+                else [],
             }
             self._cache_set("cluster:status", status, ttl_seconds=5)
             return self._format_response(status, "cluster")

@@ -53,10 +53,14 @@ class ContainerConsoleManager:
         # etc.) which is essential when the MCP server runs headless.
         # `-o StrictHostKeyChecking=accept-new` silently trusts first-seen
         # host keys so first-time connections do not block execution.
-        ssh_cmd.extend([
-            "-o", "BatchMode=yes",
-            "-o", "StrictHostKeyChecking=accept-new",
-        ])
+        ssh_cmd.extend(
+            [
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+            ]
+        )
         # `--` ends OpenSSH option processing so a target accidentally starting
         # with "-" (e.g. a misconfigured host_overrides value) cannot be
         # reinterpreted as a flag like -oProxyCommand=...
@@ -109,7 +113,9 @@ class ContainerConsoleManager:
         # 2. Build pct exec command
         prefix = "sudo " if self.ssh_cfg.use_sudo else ""
         cmd = f"{prefix}/usr/sbin/pct exec {shlex.quote(str(vmid))} -- sh -c {shlex.quote(command)}"
-        self.logger.info("Executing command on CT %s@%s", _log_safe(vmid), _log_safe(node))
+        self.logger.info(
+            "Executing command on CT %s@%s", _log_safe(vmid), _log_safe(node)
+        )
         target = self._ssh_host(node)
 
         if self._use_system_ssh():
@@ -152,7 +158,9 @@ class ContainerConsoleManager:
                 "exit_code": exit_code,
             }
         except paramiko.SSHException as e:
-            self.logger.error("SSH error connecting to %s: %s", _log_safe(node), _log_safe(e))
+            self.logger.error(
+                "SSH error connecting to %s: %s", _log_safe(node), _log_safe(e)
+            )
             raise RuntimeError(f"SSH error connecting to node {node}: {e}") from e
         finally:
             client.close()

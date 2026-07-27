@@ -28,7 +28,11 @@ def test_release_versions_are_aligned():
     setup_kwargs = _setup_kwargs()
     package_init: dict[str, object] = {}
     exec(
-        compile((ROOT / "src/proxmox_mcp/__init__.py").read_text(encoding="utf-8"), "__init__.py", "exec"),
+        compile(
+            (ROOT / "src/proxmox_mcp/__init__.py").read_text(encoding="utf-8"),
+            "__init__.py",
+            "exec",
+        ),
         package_init,
     )
     manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
@@ -48,7 +52,9 @@ def test_setup_metadata_tracks_pyproject_runtime_contract():
 
     assert setup_kwargs["name"] == pyproject["project"]["name"]
     assert setup_kwargs["python_requires"] == pyproject["project"]["requires-python"]
-    assert set(setup_kwargs["install_requires"]) == set(pyproject["project"]["dependencies"])
+    assert set(setup_kwargs["install_requires"]) == set(
+        pyproject["project"]["dependencies"]
+    )
     assert set(setup_kwargs["entry_points"]["console_scripts"]) == {
         f"{name}={target}" for name, target in pyproject["project"]["scripts"].items()
     }

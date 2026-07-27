@@ -30,7 +30,9 @@ def test_api_tunnel_uses_ssh_config_options(caplog) -> None:
     manager = SSHTunnelManager(tunnel_config, ssh_config)
 
     caplog.set_level("DEBUG", logger="proxmox-mcp.ssh-tunnel")
-    with patch("proxmox_mcp.core.ssh_tunnel.subprocess.Popen", return_value=Mock()) as popen:
+    with patch(
+        "proxmox_mcp.core.ssh_tunnel.subprocess.Popen", return_value=Mock()
+    ) as popen:
         manager._start_process()
 
     command = popen.call_args.args[0]
@@ -38,7 +40,9 @@ def test_api_tunnel_uses_ssh_config_options(caplog) -> None:
     assert command[-1] == "mcp-agent@jump-host"
     assert command[command.index("-p") + 1] == "2222"
     assert command[command.index("-i") + 1] == os.path.expanduser("~/id_ed25519")
-    assert f"UserKnownHostsFile={os.path.expanduser('~/known_hosts.proxmox')}" in command
+    assert (
+        f"UserKnownHostsFile={os.path.expanduser('~/known_hosts.proxmox')}" in command
+    )
     assert "StrictHostKeyChecking=no" in command
     assert "id_ed25519" not in caplog.text
     assert "known_hosts.proxmox" not in caplog.text
@@ -58,7 +62,9 @@ def test_api_tunnel_does_not_duplicate_user_in_ssh_host() -> None:
     ssh_config = SimpleNamespace(user="mcp-agent", port=22, key_file=None)
     manager = SSHTunnelManager(tunnel_config, ssh_config)
 
-    with patch("proxmox_mcp.core.ssh_tunnel.subprocess.Popen", return_value=Mock()) as popen:
+    with patch(
+        "proxmox_mcp.core.ssh_tunnel.subprocess.Popen", return_value=Mock()
+    ) as popen:
         manager._start_process()
 
     assert popen.call_args.args[0][-1] == "root@jump-host"
@@ -86,9 +92,9 @@ def test_api_tunnel_reuses_reachable_local_endpoint() -> None:
     )
     manager = SSHTunnelManager(tunnel_config)
 
-    with patch.object(manager, "_is_local_endpoint_reachable", return_value=True), patch.object(
-        manager, "_start_process"
-    ) as start_process:
+    with patch.object(
+        manager, "_is_local_endpoint_reachable", return_value=True
+    ), patch.object(manager, "_start_process") as start_process:
         manager.ensure_tunnel()
 
     start_process.assert_not_called()
@@ -106,9 +112,11 @@ def test_api_tunnel_starts_and_waits_when_local_endpoint_unreachable() -> None:
     )
     manager = SSHTunnelManager(tunnel_config)
 
-    with patch.object(manager, "_is_local_endpoint_reachable", return_value=False), patch.object(
-        manager, "_start_process"
-    ) as start_process, patch.object(manager, "_wait_for_local_listener") as wait_for_listener:
+    with patch.object(
+        manager, "_is_local_endpoint_reachable", return_value=False
+    ), patch.object(manager, "_start_process") as start_process, patch.object(
+        manager, "_wait_for_local_listener"
+    ) as wait_for_listener:
         manager.ensure_tunnel()
 
     start_process.assert_called_once()
@@ -177,9 +185,11 @@ def test_api_tunnel_wait_times_out_without_listener() -> None:
     process.poll.return_value = None
     manager._process = process
 
-    with patch.object(manager, "_is_local_endpoint_reachable", return_value=False), patch(
-        "proxmox_mcp.core.ssh_tunnel.time.time", side_effect=[0, 2]
-    ), patch("proxmox_mcp.core.ssh_tunnel.time.sleep"):
+    with patch.object(
+        manager, "_is_local_endpoint_reachable", return_value=False
+    ), patch("proxmox_mcp.core.ssh_tunnel.time.time", side_effect=[0, 2]), patch(
+        "proxmox_mcp.core.ssh_tunnel.time.sleep"
+    ):
         with pytest.raises(RuntimeError, match="Timed out waiting"):
             manager._wait_for_local_listener()
 

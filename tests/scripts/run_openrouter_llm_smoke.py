@@ -61,7 +61,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--config",
-        default=os.getenv("PROXMOX_MCP_CONFIG", str(ROOT / "proxmox-config" / "config.json")),
+        default=os.getenv(
+            "PROXMOX_MCP_CONFIG", str(ROOT / "proxmox-config" / "config.json")
+        ),
         help="Path to Proxmox MCP config used only for local tool discovery",
     )
     parser.add_argument(
@@ -92,11 +94,15 @@ def main() -> int:
     data = response.json()
     choices = data.get("choices", [])
     if not choices:
-        raise RuntimeError(f"OpenRouter returned no choices: {json.dumps(data, indent=2)}")
+        raise RuntimeError(
+            f"OpenRouter returned no choices: {json.dumps(data, indent=2)}"
+        )
 
     message = choices[0].get("message", {}).get("content", "")
     if not message:
-        raise RuntimeError(f"OpenRouter returned an empty message: {json.dumps(data, indent=2)}")
+        raise RuntimeError(
+            f"OpenRouter returned an empty message: {json.dumps(data, indent=2)}"
+        )
 
     print("[openrouter-smoke] model:", data.get("model", args.model))
     print("[openrouter-smoke] tools:", len(tool_names))

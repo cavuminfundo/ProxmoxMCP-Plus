@@ -67,11 +67,16 @@ def main() -> int:
 
     report: dict[str, Any] = {
         "config_path": str(config_path),
-        "config_role": "live" if config_path == DEFAULT_LIVE_CONFIG_PATH or os.getenv("PROXMOX_MCP_E2E_CONFIG") else "runtime",
+        "config_role": "live"
+        if config_path == DEFAULT_LIVE_CONFIG_PATH
+        or os.getenv("PROXMOX_MCP_E2E_CONFIG")
+        else "runtime",
         "proxmox": {
             "host": config.proxmox.host,
             "port": config.proxmox.port,
-            "reachable": tcp_reachable(str(config.proxmox.host), int(config.proxmox.port)),
+            "reachable": tcp_reachable(
+                str(config.proxmox.host), int(config.proxmox.port)
+            ),
         },
         "ssh": None,
         "ssh_aliases": {},
@@ -90,7 +95,9 @@ def main() -> int:
     aliases_to_check: set[str] = set()
     ssh_config_path = Path.home() / ".ssh" / "config"
     if ssh_config_path.exists():
-        for line in ssh_config_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        for line in ssh_config_path.read_text(
+            encoding="utf-8", errors="ignore"
+        ).splitlines():
             stripped = line.strip()
             if not stripped.lower().startswith("host "):
                 continue
@@ -113,10 +120,11 @@ def main() -> int:
         }
 
     proxmox_host = str(config.proxmox.host)
-    if (
-        config_path == DEFAULT_CONFIG_PATH
-        and proxmox_host in {"localhost", "127.0.0.1", "::1"}
-    ):
+    if config_path == DEFAULT_CONFIG_PATH and proxmox_host in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+    }:
         report["recommendation"] = (
             "This is the default runtime config and it still points at a local-only Proxmox API target. "
             "Create proxmox-config/config.live.json for real e2e runs or set PROXMOX_MCP_E2E_CONFIG."

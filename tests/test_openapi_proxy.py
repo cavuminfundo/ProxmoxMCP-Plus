@@ -266,7 +266,9 @@ class _FakeCommandPolicy:
     def __init__(self):
         self.calls = []
 
-    def evaluate_operation(self, operation_name: str, *, approval_token: str | None = None):
+    def evaluate_operation(
+        self, operation_name: str, *, approval_token: str | None = None
+    ):
         self.calls.append((operation_name, approval_token))
         if operation_name == "delete_vm" and approval_token != "approve-me":
             return SimpleNamespace(
@@ -309,7 +311,10 @@ def test_jobs_routes_return_expected_status_codes():
 
     conflict_response = client.post("/jobs/bad/cancel")
     assert conflict_response.status_code == 409
-    assert conflict_response.json()["message"] == "Job cannot perform that operation right now"
+    assert (
+        conflict_response.json()["message"]
+        == "Job cannot perform that operation right now"
+    )
 
     retry_response = client.post("/jobs/job-1/retry")
     assert retry_response.status_code == 202
@@ -361,7 +366,9 @@ def test_main_refuses_to_start_without_api_key(_isolated_proxy_env, monkeypatch)
     mock_run.assert_not_called()
 
 
-def test_main_starts_without_api_key_when_override_set(_isolated_proxy_env, monkeypatch):
+def test_main_starts_without_api_key_when_override_set(
+    _isolated_proxy_env, monkeypatch
+):
     """PROXMOX_ALLOW_NO_AUTH=true allows the proxy to boot without an api_key."""
     monkeypatch.setenv("PROXMOX_ALLOW_NO_AUTH", "true")
     monkeypatch.setattr("sys.argv", ["openapi_proxy", "--", "echo", "ok"])
@@ -372,7 +379,9 @@ def test_main_starts_without_api_key_when_override_set(_isolated_proxy_env, monk
     mock_run.assert_called_once()
 
 
-def test_main_auto_enables_strict_auth_when_api_key_set(_isolated_proxy_env, monkeypatch):
+def test_main_auto_enables_strict_auth_when_api_key_set(
+    _isolated_proxy_env, monkeypatch
+):
     """Setting an api_key without strict_auth should auto-enable strict_auth."""
     monkeypatch.setattr(
         "sys.argv",
@@ -443,7 +452,9 @@ def test_retry_job_route_enforces_high_risk_policy():
     assert denied_response.status_code == 403
     assert denied_response.json()["message"] == "Job operation requires approval"
 
-    approved_response = client.post("/jobs/danger/retry", params={"approval_token": "approve-me"})
+    approved_response = client.post(
+        "/jobs/danger/retry", params={"approval_token": "approve-me"}
+    )
     assert approved_response.status_code == 202
     assert approved_response.json()["attempts"] == 2
     assert policy.calls == [

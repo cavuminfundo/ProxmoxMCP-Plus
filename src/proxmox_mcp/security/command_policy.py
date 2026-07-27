@@ -44,9 +44,13 @@ class CommandPolicyGate:
     def _matches_any(command: str, patterns: list[Pattern[str]]) -> bool:
         return any(pattern.search(command) for pattern in patterns)
 
-    def evaluate(self, command: str, approval_token: str | None = None) -> CommandPolicyDecision:
+    def evaluate(
+        self, command: str, approval_token: str | None = None
+    ) -> CommandPolicyDecision:
         if not command or not command.strip():
-            return CommandPolicyDecision(False, "CMD_POLICY_EMPTY", "Command cannot be empty")
+            return CommandPolicyDecision(
+                False, "CMD_POLICY_EMPTY", "Command cannot be empty"
+            )
 
         if self._matches_any(command, self.deny_patterns):
             return CommandPolicyDecision(
@@ -56,7 +60,9 @@ class CommandPolicyGate:
             )
 
         mode = self.config.mode
-        if mode in {"deny_all", "allowlist"} and not self._matches_any(command, self.allow_patterns):
+        if mode in {"deny_all", "allowlist"} and not self._matches_any(
+            command, self.allow_patterns
+        ):
             return CommandPolicyDecision(
                 False,
                 "CMD_POLICY_NOT_ALLOWLISTED",
@@ -78,7 +84,9 @@ class CommandPolicyGate:
                 )
 
         if mode == "audit_only":
-            return CommandPolicyDecision(True, "CMD_POLICY_AUDIT_ALLOW", "Allowed (audit-only mode)")
+            return CommandPolicyDecision(
+                True, "CMD_POLICY_AUDIT_ALLOW", "Allowed (audit-only mode)"
+            )
 
         return CommandPolicyDecision(True, "CMD_POLICY_ALLOW", "Allowed by policy")
 
@@ -89,16 +97,24 @@ class CommandPolicyGate:
         approval_token: str | None = None,
     ) -> CommandPolicyDecision:
         if not operation_name:
-            return CommandPolicyDecision(False, "OP_POLICY_EMPTY", "Operation name cannot be empty")
+            return CommandPolicyDecision(
+                False, "OP_POLICY_EMPTY", "Operation name cannot be empty"
+            )
 
         if operation_name not in set(self.config.high_risk_operations):
-            return CommandPolicyDecision(True, "OP_POLICY_ALLOW", "Operation is not classified as high risk")
+            return CommandPolicyDecision(
+                True, "OP_POLICY_ALLOW", "Operation is not classified as high risk"
+            )
 
         mode = self.config.high_risk_mode
         if mode == "disabled":
-            return CommandPolicyDecision(True, "OP_POLICY_DISABLED", "High-risk policy is disabled")
+            return CommandPolicyDecision(
+                True, "OP_POLICY_DISABLED", "High-risk policy is disabled"
+            )
 
-        expected_token = self.config.high_risk_approval_token or self.config.approval_token
+        expected_token = (
+            self.config.high_risk_approval_token or self.config.approval_token
+        )
         requires_token = self.config.high_risk_require_approval_token
         if requires_token:
             if not expected_token:

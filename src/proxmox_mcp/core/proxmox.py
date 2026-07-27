@@ -25,17 +25,17 @@ def _log_safe(value: object, max_length: int = 200) -> str:
 
 class ProxmoxManager:
     """Manager class for Proxmox API operations.
-    
+
     This class handles:
     - API connection initialization and management
     - Configuration validation and merging
     - Connection testing and health checks
     - Token-based authentication setup
-    
+
     The manager provides a single point of access to the Proxmox API,
     ensuring proper initialization and error handling for all API operations.
     """
-    
+
     def __init__(
         self,
         proxmox_config: ProxmoxConfig,
@@ -51,13 +51,19 @@ class ProxmoxManager:
         """
         self.logger = logging.getLogger("proxmox-mcp.proxmox")
         self.api_tunnel_config = api_tunnel_config
-        self.tunnel_manager = SSHTunnelManager(api_tunnel_config, ssh_config) if api_tunnel_config is not None else None
+        self.tunnel_manager = (
+            SSHTunnelManager(api_tunnel_config, ssh_config)
+            if api_tunnel_config is not None
+            else None
+        )
         if self.tunnel_manager is not None:
             self.tunnel_manager.ensure_tunnel()
         self.config = self._create_config(proxmox_config, auth_config)
         self.api = self._setup_api()
 
-    def _create_config(self, proxmox_config: ProxmoxConfig, auth_config: AuthConfig) -> Dict[str, Any]:
+    def _create_config(
+        self, proxmox_config: ProxmoxConfig, auth_config: AuthConfig
+    ) -> Dict[str, Any]:
         """Create a configuration dictionary for ProxmoxAPI.
 
         Merges connection and authentication configurations into a single
@@ -76,7 +82,9 @@ class ProxmoxManager:
         """
         host = proxmox_config.host
         port = proxmox_config.port
-        if self.api_tunnel_config is not None and getattr(self.api_tunnel_config, "enabled", False):
+        if self.api_tunnel_config is not None and getattr(
+            self.api_tunnel_config, "enabled", False
+        ):
             host = self.api_tunnel_config.local_host
             port = self.api_tunnel_config.local_port
             self.logger.info(
@@ -86,14 +94,14 @@ class ProxmoxManager:
             )
 
         return {
-            'host': host,
-            'port': port,
-            'timeout': proxmox_config.timeout,
-            'user': auth_config.user,
-            'token_name': auth_config.token_name,
-            'token_value': auth_config.token_value,
-            'verify_ssl': proxmox_config.verify_ssl,
-            'service': proxmox_config.service
+            "host": host,
+            "port": port,
+            "timeout": proxmox_config.timeout,
+            "user": auth_config.user,
+            "token_name": auth_config.token_name,
+            "token_value": auth_config.token_value,
+            "verify_ssl": proxmox_config.verify_ssl,
+            "service": proxmox_config.service,
         }
 
     def _setup_api(self) -> ProxmoxAPI:
@@ -116,21 +124,25 @@ class ProxmoxManager:
                         - SSL certificate validation errors
         """
         try:
-            self.logger.info("Connecting to Proxmox host: %s", _log_safe(self.config["host"]))
+            self.logger.info(
+                "Connecting to Proxmox host: %s", _log_safe(self.config["host"])
+            )
             api = ProxmoxAPI(**self.config)
-            
+
             # Connection test removed from startup for robustness.
             # It will fail gracefully later if credentials are wrong.
-            # api.version.get() 
-            
+            # api.version.get()
+
             return api
         except Exception as e:
-            self.logger.error("Failed to initialize Proxmox API client: %s", _log_safe(e))
+            self.logger.error(
+                "Failed to initialize Proxmox API client: %s", _log_safe(e)
+            )
             raise RuntimeError(f"Failed to initialize Proxmox API client: {e}") from e
 
     def get_api(self) -> ProxmoxAPI:
         """Get the initialized Proxmox API instance.
-        
+
         Provides access to the configured and tested ProxmoxAPI instance
         for making API calls. The instance maintains connection state and
         handles authentication automatically.

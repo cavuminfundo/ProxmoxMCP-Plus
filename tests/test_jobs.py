@@ -19,28 +19,32 @@ from proxmox_mcp.tools.containers import ContainerTools
 @pytest.fixture
 def mock_env_vars(tmp_path):
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {
-            "host": "test.proxmox.com",
-            "port": 8006,
-            "verify_ssl": True,
-            "service": "PVE",
-        },
-        "auth": {
-            "user": "test@pve",
-            "token_name": "test_token",
-            "token_value": "test_value",
-        },
-        "logging": {
-            "level": "DEBUG",
-        },
-        "jobs": {
-            "sqlite_path": str(tmp_path / "jobs.sqlite3"),
-        },
-        "command_policy": {
-            "mode": "audit_only",
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {
+                    "level": "DEBUG",
+                },
+                "jobs": {
+                    "sqlite_path": str(tmp_path / "jobs.sqlite3"),
+                },
+                "command_policy": {
+                    "mode": "audit_only",
+                },
+            }
+        )
+    )
     with patch.dict(os.environ, {"PROXMOX_MCP_CONFIG": str(config_path)}):
         yield str(config_path)
 
@@ -48,7 +52,9 @@ def mock_env_vars(tmp_path):
 @pytest.fixture
 def mock_proxmox():
     with patch("proxmox_mcp.core.proxmox.ProxmoxAPI") as mock:
-        mock.return_value.nodes.get.return_value = [{"node": "node1", "status": "online"}]
+        mock.return_value.nodes.get.return_value = [
+            {"node": "node1", "status": "online"}
+        ]
         yield mock
 
 
@@ -119,7 +125,14 @@ def test_job_store_persists_to_sqlite(tmp_path: Path):
         node="pve",
         upid="UPID:persisted",
         metadata={"filename": "test.iso"},
-        retry_spec={"kind": "iso.delete", "params": {"node": "pve", "storage": "local", "volid": "local:iso/test.iso"}},
+        retry_spec={
+            "kind": "iso.delete",
+            "params": {
+                "node": "pve",
+                "storage": "local",
+                "volid": "local:iso/test.iso",
+            },
+        },
     )
 
     second = JobStore(proxmox, sqlite_path=str(db_path))
@@ -138,10 +151,11 @@ def test_job_store_configures_sqlite_for_concurrency(tmp_path: Path):
 
     journal_mode = store._conn.execute("PRAGMA journal_mode").fetchone()[0]
     busy_timeout = store._conn.execute("PRAGMA busy_timeout").fetchone()[0]
-    schema_version = store._conn.execute("SELECT version FROM schema_migrations").fetchone()[0]
+    schema_version = store._conn.execute(
+        "SELECT version FROM schema_migrations"
+    ).fetchone()[0]
     indexes = {
-        row[1]
-        for row in store._conn.execute("PRAGMA index_list('jobs')").fetchall()
+        row[1] for row in store._conn.execute("PRAGMA index_list('jobs')").fetchall()
     }
 
     assert journal_mode.lower() == "wal"
@@ -189,7 +203,9 @@ def test_job_store_list_jobs_filters_and_limits_in_sql_order(tmp_path: Path):
     )
     store._conn.commit()
 
-    running_start_jobs = store.list_jobs(status="running", tool_name="start_vm", limit=1)
+    running_start_jobs = store.list_jobs(
+        status="running", tool_name="start_vm", limit=1
+    )
 
     assert [job["job_id"] for job in running_start_jobs] == [third["job_id"]]
 
@@ -227,7 +243,9 @@ def test_job_store_refreshes_records_written_by_another_instance(tmp_path: Path)
 
 def test_job_store_retry_uses_persisted_retry_spec(tmp_path: Path):
     proxmox = Mock()
-    proxmox.nodes.return_value.qemu.return_value.status.start.post.return_value = "UPID:retry-from-sqlite"
+    proxmox.nodes.return_value.qemu.return_value.status.start.post.return_value = (
+        "UPID:retry-from-sqlite"
+    )
     db_path = tmp_path / "jobs.sqlite3"
 
     first = JobStore(proxmox, sqlite_path=str(db_path))
@@ -238,7 +256,9 @@ def test_job_store_retry_uses_persisted_retry_spec(tmp_path: Path):
         upid="UPID:original",
         retry_spec={"kind": "vm.start", "params": {"node": "pve", "vmid": "101"}},
     )
-    first._conn.execute("UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],))
+    first._conn.execute(
+        "UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],)
+    )
     first._conn.commit()
 
     second = JobStore(proxmox, sqlite_path=str(db_path))
@@ -269,7 +289,9 @@ def test_job_store_retry_vm_clone_from_persisted_recipe(tmp_path: Path):
             },
         },
     )
-    first._conn.execute("UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],))
+    first._conn.execute(
+        "UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],)
+    )
     first._conn.commit()
 
     second = JobStore(proxmox, sqlite_path=str(db_path))
@@ -277,7 +299,9 @@ def test_job_store_retry_vm_clone_from_persisted_recipe(tmp_path: Path):
 
     proxmox.nodes.assert_called_with("pve")
     proxmox.nodes.return_value.qemu.assert_called_with("9000")
-    source_vm_api.clone.post.assert_called_once_with(newid=9100, full=1, name="cloned-vm")
+    source_vm_api.clone.post.assert_called_once_with(
+        newid=9100, full=1, name="cloned-vm"
+    )
     assert retried["upid"] == "UPID:clone-retry"
     assert retried["attempts"] == 2
 
@@ -298,7 +322,9 @@ def test_job_store_retry_rejects_running_and_completed_jobs(tmp_path: Path):
     with pytest.raises(JobConflictError, match="cannot be retried"):
         store.retry_job(created["job_id"])
 
-    store._conn.execute("UPDATE jobs SET status = 'completed' WHERE job_id = ?", (created["job_id"],))
+    store._conn.execute(
+        "UPDATE jobs SET status = 'completed' WHERE job_id = ?", (created["job_id"],)
+    )
     store._conn.commit()
 
     with pytest.raises(JobConflictError, match="cannot be retried"):
@@ -328,7 +354,9 @@ def test_job_store_retry_claim_blocks_concurrent_retry(tmp_path: Path):
         upid="UPID:original",
         retry_factory=retry_factory,
     )
-    store._conn.execute("UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],))
+    store._conn.execute(
+        "UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],)
+    )
     store._conn.commit()
 
     result: dict[str, Any] = {}
@@ -369,14 +397,18 @@ def test_job_store_poll_discards_stale_upid_after_retry(tmp_path: Path):
         upid="UPID:old",
         retry_factory=retry,
     )
-    store._conn.execute("UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],))
+    store._conn.execute(
+        "UPDATE jobs SET status = 'failed' WHERE job_id = ?", (created["job_id"],)
+    )
     store._conn.commit()
 
     def retry_during_poll():
         store.retry_job(created["job_id"])
         return {"status": "stopped", "exitstatus": "OK"}
 
-    proxmox.nodes.return_value.tasks.return_value.status.get.side_effect = retry_during_poll
+    proxmox.nodes.return_value.tasks.return_value.status.get.side_effect = (
+        retry_during_poll
+    )
     proxmox.nodes.return_value.tasks.return_value.log.get.return_value = [{"t": "100%"}]
 
     polled = store.poll_job(created["job_id"])
@@ -384,7 +416,10 @@ def test_job_store_poll_discards_stale_upid_after_retry(tmp_path: Path):
     assert polled["upid"] == "UPID:new"
     assert polled["status"] == "running"
     assert polled["progress"] == 0
-    assert [event["event"] for event in polled["audit_log"]][-2:] == ["retried", "poll_discarded"]
+    assert [event["event"] for event in polled["audit_log"]][-2:] == [
+        "retried",
+        "poll_discarded",
+    ]
 
 
 def test_job_store_cancel_discards_stale_upid(tmp_path: Path):
@@ -452,7 +487,11 @@ def test_create_container_does_not_persist_secret_retry_spec(tmp_path: Path):
         ssh_public_keys="ssh-ed25519 AAAA-secret-key",
     )
 
-    persisted = sqlite3.connect(db_path).execute("SELECT retry_spec_json FROM jobs").fetchone()[0]
+    persisted = (
+        sqlite3.connect(db_path)
+        .execute("SELECT retry_spec_json FROM jobs")
+        .fetchone()[0]
+    )
     job = store.list_jobs()[0]
 
     assert persisted is None

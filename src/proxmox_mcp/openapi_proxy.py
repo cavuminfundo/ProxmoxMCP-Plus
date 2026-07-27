@@ -52,7 +52,9 @@ class AuthFailure:
     headers: dict[str, str] | None = None
 
 
-def _verify_authorization_header(authorization: str | None, api_key: str) -> AuthFailure | None:
+def _verify_authorization_header(
+    authorization: str | None, api_key: str
+) -> AuthFailure | None:
     authenticate_headers = {"WWW-Authenticate": "Bearer, Basic"}
     if not authorization:
         return AuthFailure(
@@ -86,7 +88,9 @@ def _verify_authorization_header(authorization: str | None, api_key: str) -> Aut
                 authenticate_headers,
             )
         if not _constant_time_equal(password, api_key):
-            return AuthFailure(status.HTTP_403_FORBIDDEN, {"detail": "Invalid credentials"})
+            return AuthFailure(
+                status.HTTP_403_FORBIDDEN, {"detail": "Invalid credentials"}
+            )
         return None
 
     return AuthFailure(
@@ -98,7 +102,9 @@ def _verify_authorization_header(authorization: str | None, api_key: str) -> Aut
 
 def _get_verify_api_key(api_key: str):
     async def verify_api_key(request: Request) -> None:
-        failure = _verify_authorization_header(request.headers.get("Authorization"), api_key)
+        failure = _verify_authorization_header(
+            request.headers.get("Authorization"), api_key
+        )
         if failure is not None:
             raise HTTPException(
                 status_code=failure.status_code,
@@ -109,18 +115,24 @@ def _get_verify_api_key(api_key: str):
     return verify_api_key
 
 
-def _security_warnings(*, api_key: Optional[str], strict_auth: bool, cors_allow_origins: list[str]) -> list[str]:
+def _security_warnings(
+    *, api_key: Optional[str], strict_auth: bool, cors_allow_origins: list[str]
+) -> list[str]:
     warnings: list[str] = []
     if not api_key:
         warnings.append("OpenAPI proxy is running without PROXMOX_API_KEY.")
     if api_key and not strict_auth:
-        warnings.append("PROXMOX_API_KEY is configured but PROXMOX_STRICT_AUTH is disabled.")
+        warnings.append(
+            "PROXMOX_API_KEY is configured but PROXMOX_STRICT_AUTH is disabled."
+        )
     if not api_key and os.getenv("PROXMOX_ALLOW_NO_AUTH", "false").lower() == "true":
         warnings.append(
             "PROXMOX_ALLOW_NO_AUTH=true is set; OpenAPI proxy is running without an API key."
         )
     if "*" in cors_allow_origins:
-        warnings.append("CORS allows all origins; set MCPO_CORS_ALLOW_ORIGINS for production.")
+        warnings.append(
+            "CORS allows all origins; set MCPO_CORS_ALLOW_ORIGINS for production."
+        )
     return warnings
 
 
@@ -201,7 +213,9 @@ class OpenAPIAuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS" or request.url.path in self.EXEMPT_PATHS:
             return await call_next(request)
 
-        failure = _verify_authorization_header(request.headers.get("Authorization"), self.api_key)
+        failure = _verify_authorization_header(
+            request.headers.get("Authorization"), self.api_key
+        )
         if failure is not None:
             return JSONResponse(
                 status_code=failure.status_code,
@@ -251,7 +265,9 @@ def create_app(
     if api_key and strict_auth:
         app.add_middleware(OpenAPIAuthMiddleware, api_key=api_key)
     if rate_limit_rpm > 0:
-        app.add_middleware(cast(Any, RateLimitMiddleware), requests_per_minute=rate_limit_rpm)
+        app.add_middleware(
+            cast(Any, RateLimitMiddleware), requests_per_minute=rate_limit_rpm
+        )
     app.add_middleware(ProxyMetricsMiddleware)
 
     app.state.path_prefix = path_prefix
@@ -269,7 +285,9 @@ def create_app(
         strict_auth=strict_auth,
         cors_allow_origins=cors_allow_origins,
     )
-    job_auth_dependencies = [Depends(api_dependency)] if api_dependency and not strict_auth else []
+    job_auth_dependencies = (
+        [Depends(api_dependency)] if api_dependency and not strict_auth else []
+    )
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:
@@ -341,14 +359,38 @@ def create_app(
     def _job_error_response(error: Exception) -> JSONResponse:
         LOGGER.warning("Job route error: %s", _log_safe(error))
         if isinstance(error, JobNotFoundError):
-            return JSONResponse(status_code=404, content={"status": "not_found", "message": "Job was not found"})
+            return JSONResponse(
+                status_code=404,
+                content={"status": "not_found", "message": "Job was not found"},
+            )
         if isinstance(error, PermissionError):
-            return JSONResponse(status_code=403, content={"status": "forbidden", "message": "Job operation requires approval"})
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "status": "forbidden",
+                    "message": "Job operation requires approval",
+                },
+            )
         if isinstance(error, JobConflictError):
-            return JSONResponse(status_code=409, content={"status": "conflict", "message": "Job cannot perform that operation right now"})
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "status": "conflict",
+                    "message": "Job cannot perform that operation right now",
+                },
+            )
         if isinstance(error, RuntimeError):
-            return JSONResponse(status_code=503, content={"status": "unavailable", "message": "Job service is unavailable in this process"})
-        return JSONResponse(status_code=400, content={"status": "error", "message": "Job request failed"})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unavailable",
+                    "message": "Job service is unavailable in this process",
+                },
+            )
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Job request failed"},
+        )
 
     def _enforce_job_retry_policy(job_id: str, approval_token: Optional[str]) -> None:
         policy = getattr(app.state, "command_policy", None)
@@ -378,7 +420,9 @@ def create_app(
         limit: int = 100,
     ) -> JSONResponse:
         try:
-            payload = _require_job_store().list_jobs(status=status, tool_name=tool_name, limit=limit)
+            payload = _require_job_store().list_jobs(
+                status=status, tool_name=tool_name, limit=limit
+            )
             return JSONResponse(status_code=200, content=payload)
         except Exception as exc:  # noqa: BLE001
             return _job_error_response(exc)
@@ -387,7 +431,11 @@ def create_app(
     async def get_job(job_id: str, refresh: bool = False) -> JSONResponse:
         try:
             job_store_local = _require_job_store()
-            payload = job_store_local.poll_job(job_id) if refresh else job_store_local.get_job(job_id)
+            payload = (
+                job_store_local.poll_job(job_id)
+                if refresh
+                else job_store_local.get_job(job_id)
+            )
             return JSONResponse(status_code=200, content=payload)
         except Exception as exc:  # noqa: BLE001
             return _job_error_response(exc)
@@ -409,7 +457,9 @@ def create_app(
             return _job_error_response(exc)
 
     @app.post("/jobs/{job_id}/retry", dependencies=job_auth_dependencies)
-    async def retry_job(job_id: str, approval_token: Optional[str] = None) -> JSONResponse:
+    async def retry_job(
+        job_id: str, approval_token: Optional[str] = None
+    ) -> JSONResponse:
         try:
             _enforce_job_retry_policy(job_id, approval_token)
             payload = _require_job_store().retry_job(job_id)

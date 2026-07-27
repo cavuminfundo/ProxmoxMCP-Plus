@@ -33,7 +33,9 @@ def log(message: str) -> None:
     print(f"[live-e2e] {message}", flush=True)
 
 
-def call_with_transient_retry(getter: Any, context: str, attempts: int = 8, delay: float = 2.0) -> Any:
+def call_with_transient_retry(
+    getter: Any, context: str, attempts: int = 8, delay: float = 2.0
+) -> Any:
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
@@ -42,9 +44,13 @@ def call_with_transient_retry(getter: Any, context: str, attempts: int = 8, dela
             last_error = exc
             if attempt == attempts:
                 break
-            log(f"Transient API failure during {context}; retrying ({attempt}/{attempts}) -> {exc}")
+            log(
+                f"Transient API failure during {context}; retrying ({attempt}/{attempts}) -> {exc}"
+            )
             time.sleep(delay)
-    raise RuntimeError(f"Failed during {context} after {attempts} attempts: {last_error}") from last_error
+    raise RuntimeError(
+        f"Failed during {context} after {attempts} attempts: {last_error}"
+    ) from last_error
 
 
 def resolve_live_config_path() -> Path:
@@ -188,7 +194,9 @@ def wait_for_task(api: Any, node: str, upid: str, timeout: int = 900) -> dict[st
     raise TimeoutError(f"Timed out waiting for task {upid}: {last_status}")
 
 
-def wait_for_guest_status(getter: Any, expected: str, timeout: int = 180) -> dict[str, Any]:
+def wait_for_guest_status(
+    getter: Any, expected: str, timeout: int = 180
+) -> dict[str, Any]:
     deadline = time.time() + timeout
     last_status: dict[str, Any] | None = None
     while time.time() < deadline:
@@ -200,7 +208,9 @@ def wait_for_guest_status(getter: Any, expected: str, timeout: int = 180) -> dic
         if last_status.get("status") == expected:
             return last_status
         time.sleep(2)
-    raise TimeoutError(f"Timed out waiting for guest status '{expected}': {last_status}")
+    raise TimeoutError(
+        f"Timed out waiting for guest status '{expected}': {last_status}"
+    )
 
 
 def next_vmid(api: Any) -> int:
@@ -279,7 +289,9 @@ def choose_appliance_template(api: Any, node: str) -> dict[str, Any]:
         "ubuntu-22.04-standard_",
     )
     aplinfo = api.nodes(node).aplinfo.get()
-    templates = [item for item in aplinfo if isinstance(item, dict) and item.get("type") == "lxc"]
+    templates = [
+        item for item in aplinfo if isinstance(item, dict) and item.get("type") == "lxc"
+    ]
     if not templates:
         raise RuntimeError(f"No downloadable LXC templates available for node {node}")
 
@@ -380,7 +392,9 @@ def run_local_openapi(config_path: Path) -> None:
     try:
         livez = wait_for_http(f"http://127.0.0.1:{port}/livez")
         log(f"Local OpenAPI liveness: {livez.text}")
-        health = wait_for_http(f"http://127.0.0.1:{port}/health", headers=openapi_headers())
+        health = wait_for_http(
+            f"http://127.0.0.1:{port}/health", headers=openapi_headers()
+        )
         log(f"Local OpenAPI health: {health.text}")
         schema = requests.get(
             f"http://127.0.0.1:{port}/openapi.json",
@@ -424,7 +438,9 @@ def run_docker_openapi(config_path: Path) -> None:
         container_id = subprocess.check_output(run_cmd, cwd=ROOT, text=True).strip()
         livez = wait_for_http(f"http://127.0.0.1:{port}/livez")
         log(f"Docker OpenAPI liveness: {livez.text}")
-        health = wait_for_http(f"http://127.0.0.1:{port}/health", headers=openapi_headers())
+        health = wait_for_http(
+            f"http://127.0.0.1:{port}/health", headers=openapi_headers()
+        )
         log(f"Docker OpenAPI health: {health.text}")
         schema = requests.get(
             f"http://127.0.0.1:{port}/openapi.json",
@@ -447,16 +463,25 @@ def prepare_live_config(config_path: Path) -> tuple[Path, str | None]:
     security = raw.setdefault("security", {})
     if proxmox.get("verify_ssl", True) is False and not security.get("dev_mode", False):
         security["dev_mode"] = True
-        tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        tmp = tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8"
+        )
         with tmp:
             json.dump(raw, tmp, indent=4)
-        return Path(tmp.name), "Enabled security.dev_mode in a temporary test config because verify_ssl=false."
+        return (
+            Path(tmp.name),
+            "Enabled security.dev_mode in a temporary test config because verify_ssl=false.",
+        )
     return config_path, None
 
 
 def assert_config_is_live_ready(config_path: Path, config: Any) -> None:
     proxmox_host = str(config.proxmox.host)
-    if config_path == DEFAULT_CONFIG_PATH and proxmox_host in {"localhost", "127.0.0.1", "::1"}:
+    if config_path == DEFAULT_CONFIG_PATH and proxmox_host in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+    }:
         raise RuntimeError(
             "Refusing to run live e2e against the default proxmox-config/config.json because it still "
             "points at a local-only API target. Use proxmox-config/config.live.json or PROXMOX_MCP_E2E_CONFIG."
@@ -507,43 +532,73 @@ def main() -> int:
         backup_volid: str | None = None
 
         log(f"Creating VM {vmid}")
-        upid = extract_task_id(server.vm_tools.create_vm(node, str(vmid), f"codex-vm-{vmid}", 1, 1024, 8, vm_storage))
+        upid = extract_task_id(
+            server.vm_tools.create_vm(
+                node, str(vmid), f"codex-vm-{vmid}", 1, 1024, 8, vm_storage
+            )
+        )
         wait_for_task(api, node, upid)
-        wait_for_guest_status(lambda: api.nodes(node).qemu(vmid).status.current.get(), "stopped")
+        wait_for_guest_status(
+            lambda: api.nodes(node).qemu(vmid).status.current.get(), "stopped"
+        )
         log(f"Disabling KVM acceleration for nested test VM {vmid}")
         api.nodes(node).qemu(vmid).config.post(kvm=0)
 
         log(f"Starting VM {vmid}")
         upid = extract_task_id(server.vm_tools.start_vm(node, str(vmid)))
         wait_for_task(api, node, upid)
-        wait_for_guest_status(lambda: api.nodes(node).qemu(vmid).status.current.get(), "running")
+        wait_for_guest_status(
+            lambda: api.nodes(node).qemu(vmid).status.current.get(), "running"
+        )
 
         log(f"Stopping VM {vmid}")
         upid = extract_task_id(server.vm_tools.stop_vm(node, str(vmid)))
         wait_for_task(api, node, upid)
-        wait_for_guest_status(lambda: api.nodes(node).qemu(vmid).status.current.get(), "stopped")
+        wait_for_guest_status(
+            lambda: api.nodes(node).qemu(vmid).status.current.get(), "stopped"
+        )
 
         log(f"Creating snapshot {snapshot_name} for VM {vmid}")
-        upid = extract_task_id(server.snapshot_tools.create_snapshot(node, str(vmid), snapshot_name, vm_type="qemu"))
+        upid = extract_task_id(
+            server.snapshot_tools.create_snapshot(
+                node, str(vmid), snapshot_name, vm_type="qemu"
+            )
+        )
         wait_for_task(api, node, upid)
 
         log(f"Rolling back snapshot {snapshot_name} for VM {vmid}")
-        upid = extract_task_id(server.snapshot_tools.rollback_snapshot(node, str(vmid), snapshot_name, vm_type="qemu"))
+        upid = extract_task_id(
+            server.snapshot_tools.rollback_snapshot(
+                node, str(vmid), snapshot_name, vm_type="qemu"
+            )
+        )
         wait_for_task(api, node, upid)
 
         log(f"Creating backup for VM {vmid}")
-        upid = extract_task_id(server.backup_tools.create_backup(node, str(vmid), backup_storage))
+        upid = extract_task_id(
+            server.backup_tools.create_backup(node, str(vmid), backup_storage)
+        )
         wait_for_task(api, node, upid, timeout=1800)
         backup_volid = newest_backup(api, node, backup_storage, vmid)
         log(f"Created backup: {backup_volid}")
 
         log(f"Restoring VM backup to {restore_vmid}")
-        upid = extract_task_id(server.backup_tools.restore_backup(node, backup_volid, str(restore_vmid), storage=vm_storage))
+        upid = extract_task_id(
+            server.backup_tools.restore_backup(
+                node, backup_volid, str(restore_vmid), storage=vm_storage
+            )
+        )
         wait_for_task(api, node, upid, timeout=1800)
-        wait_for_guest_status(lambda: api.nodes(node).qemu(restore_vmid).status.current.get(), "stopped")
+        wait_for_guest_status(
+            lambda: api.nodes(node).qemu(restore_vmid).status.current.get(), "stopped"
+        )
 
         log(f"Deleting snapshot {snapshot_name} for VM {vmid}")
-        upid = extract_task_id(server.snapshot_tools.delete_snapshot(node, str(vmid), snapshot_name, vm_type="qemu"))
+        upid = extract_task_id(
+            server.snapshot_tools.delete_snapshot(
+                node, str(vmid), snapshot_name, vm_type="qemu"
+            )
+        )
         wait_for_task(api, node, upid)
 
         log(f"Downloading test ISO {iso_name}")
@@ -575,13 +630,19 @@ def main() -> int:
             )
         )
         wait_for_task(api, node, upid, timeout=1800)
-        wait_for_guest_status(lambda: api.nodes(node).lxc(ctid).status.current.get(), "stopped")
+        wait_for_guest_status(
+            lambda: api.nodes(node).lxc(ctid).status.current.get(), "stopped"
+        )
 
         log(f"Starting container {ctid}")
-        result = server.container_tools.start_container(selector=str(ctid), format_style="json")
+        result = server.container_tools.start_container(
+            selector=str(ctid), format_style="json"
+        )
         start_json = parse_json_text(result)
         wait_for_task(api, node, extract_task_id_from_item(start_json[0]))
-        wait_for_guest_status(lambda: api.nodes(node).lxc(ctid).status.current.get(), "running")
+        wait_for_guest_status(
+            lambda: api.nodes(node).lxc(ctid).status.current.get(), "running"
+        )
 
         log(f"Fetching container config and IP for {ctid}")
         parse_json_text(server.container_tools.get_container_config(node, str(ctid)))
@@ -589,22 +650,34 @@ def main() -> int:
 
         if config.ssh is not None:
             log(f"Executing SSH command inside container {ctid}")
-            exec_result = parse_json_text(server.container_tools.execute_command(str(ctid), "uname -a"))
+            exec_result = parse_json_text(
+                server.container_tools.execute_command(str(ctid), "uname -a")
+            )
             if not exec_result.get("success"):
                 raise RuntimeError(f"Container command execution failed: {exec_result}")
 
             log(f"Updating authorized_keys inside container {ctid}")
-            key_result = parse_json_text(server.container_tools.update_container_ssh_keys(node, str(ctid), TEST_KEY))
+            key_result = parse_json_text(
+                server.container_tools.update_container_ssh_keys(
+                    node, str(ctid), TEST_KEY
+                )
+            )
             if not key_result.get("success"):
                 raise RuntimeError(f"Container SSH key update failed: {key_result}")
         else:
-            raise RuntimeError("Live SSH execution requested but config.ssh is not configured")
+            raise RuntimeError(
+                "Live SSH execution requested but config.ssh is not configured"
+            )
 
         log(f"Stopping container {ctid}")
-        result = server.container_tools.stop_container(selector=str(ctid), format_style="json")
+        result = server.container_tools.stop_container(
+            selector=str(ctid), format_style="json"
+        )
         stop_json = parse_json_text(result)
         wait_for_task(api, node, extract_task_id_from_item(stop_json[0]))
-        wait_for_guest_status(lambda: api.nodes(node).lxc(ctid).status.current.get(), "stopped")
+        wait_for_guest_status(
+            lambda: api.nodes(node).lxc(ctid).status.current.get(), "stopped"
+        )
 
         log("Starting local OpenAPI proxy against the live MCP child")
         run_local_openapi(config_path)
@@ -657,11 +730,17 @@ def main() -> int:
             backup_to_delete = locals_map.get("backup_volid")
             if isinstance(backup_to_delete, str):
                 try:
-                    server.backup_tools.delete_backup(node, backup_storage, backup_to_delete)
+                    server.backup_tools.delete_backup(
+                        node, backup_storage, backup_to_delete
+                    )
                 except Exception:
                     pass
 
-            if "server" in locals_map and "iso_storage" in locals_map and "iso_name" in locals_map:
+            if (
+                "server" in locals_map
+                and "iso_storage" in locals_map
+                and "iso_name" in locals_map
+            ):
                 try:
                     server.iso_tools.delete_iso(node, iso_storage, iso_name)
                 except Exception:

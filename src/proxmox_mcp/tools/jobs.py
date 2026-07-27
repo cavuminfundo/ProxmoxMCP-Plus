@@ -15,7 +15,9 @@ class JobsTools:
         self.job_store = job_store
 
     def _json(self, payload: Any) -> List[Content]:
-        return [Content(type="text", text=json.dumps(payload, indent=2, sort_keys=True))]
+        return [
+            Content(type="text", text=json.dumps(payload, indent=2, sort_keys=True))
+        ]
 
     def list_jobs(
         self,
@@ -23,7 +25,9 @@ class JobsTools:
         tool_name: Optional[str] = None,
         limit: int = 100,
     ) -> List[Content]:
-        return self._json(self.job_store.list_jobs(status=status, tool_name=tool_name, limit=limit))
+        return self._json(
+            self.job_store.list_jobs(status=status, tool_name=tool_name, limit=limit)
+        )
 
     def get_job(self, job_id: str, refresh: bool = False) -> List[Content]:
         if refresh:

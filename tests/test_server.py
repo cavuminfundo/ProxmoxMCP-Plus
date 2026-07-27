@@ -17,7 +17,9 @@ from proxmox_mcp.server import ProxmoxMCPServer
 
 def _schema_contains_key(value, key):
     if isinstance(value, dict):
-        return key in value or any(_schema_contains_key(item, key) for item in value.values())
+        return key in value or any(
+            _schema_contains_key(item, key) for item in value.values()
+        )
     if isinstance(value, list):
         return any(_schema_contains_key(item, key) for item in value)
     return False
@@ -27,25 +29,29 @@ def _schema_contains_key(value, key):
 def mock_env_vars(tmp_path):
     """Fixture to set up test environment variables."""
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {
-            "host": "test.proxmox.com",
-            "port": 8006,
-            "verify_ssl": True,
-            "service": "PVE",
-        },
-        "auth": {
-            "user": "test@pve",
-            "token_name": "test_token",
-            "token_value": "test_value",
-        },
-        "logging": {
-            "level": "DEBUG",
-        },
-        "command_policy": {
-            "mode": "audit_only",
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {
+                    "level": "DEBUG",
+                },
+                "command_policy": {
+                    "mode": "audit_only",
+                },
+            }
+        )
+    )
 
     env_vars = {
         "PROXMOX_MCP_CONFIG": str(config_path),
@@ -60,13 +66,14 @@ def mock_env_vars(tmp_path):
     with patch.dict(os.environ, env_vars):
         yield env_vars
 
+
 @pytest.fixture
 def mock_proxmox():
     """Fixture to mock ProxmoxAPI."""
     with patch("proxmox_mcp.core.proxmox.ProxmoxAPI") as mock:
         mock.return_value.nodes.get.return_value = [
             {"node": "node1", "status": "online"},
-            {"node": "node2", "status": "online"}
+            {"node": "node2", "status": "online"},
         ]
         mock.return_value.nodes.return_value.status.get.return_value = {
             "status": "online",
@@ -76,10 +83,12 @@ def mock_proxmox():
         }
         yield mock
 
+
 @pytest.fixture
 def server(mock_env_vars, mock_proxmox):
     """Fixture to create a ProxmoxMCPServer instance."""
     return ProxmoxMCPServer(os.environ["PROXMOX_MCP_CONFIG"])
+
 
 def test_server_initialization(server, mock_proxmox):
     """Test server initialization with environment variables."""
@@ -105,12 +114,25 @@ def test_server_close_releases_job_store_and_proxmox_manager(server):
 def test_server_applies_configured_http_host_and_port(mock_proxmox, tmp_path):
     """Test FastMCP receives configured host/port for HTTP transports."""
     config_path = tmp_path / "config_http.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "mcp": {"host": "0.0.0.0", "port": 9000, "transport": "SSE"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "mcp": {"host": "0.0.0.0", "port": 9000, "transport": "SSE"},
+            }
+        )
+    )
 
     http_server = ProxmoxMCPServer(str(config_path))
 
@@ -121,12 +143,25 @@ def test_server_applies_configured_http_host_and_port(mock_proxmox, tmp_path):
 def test_mcp_env_overrides_file_transport_for_docker(tmp_path, monkeypatch):
     """Docker can select native MCP HTTP without editing a mounted config file."""
     config_path = tmp_path / "config_stdio.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "mcp": {"host": "127.0.0.1", "port": 8000, "transport": "STDIO"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "mcp": {"host": "127.0.0.1", "port": 8000, "transport": "STDIO"},
+            }
+        )
+    )
     monkeypatch.setenv("MCP_HOST", "0.0.0.0")
     monkeypatch.setenv("MCP_PORT", "9001")
     monkeypatch.setenv("MCP_TRANSPORT", "STREAMABLE_HTTP")
@@ -141,21 +176,39 @@ def test_mcp_env_overrides_file_transport_for_docker(tmp_path, monkeypatch):
 def test_mcp_env_overrides_transport_security(tmp_path, monkeypatch):
     """Reverse proxy deployments can configure MCP Host and Origin validation via env vars."""
     config_path = tmp_path / "config_stdio.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "mcp": {"host": "127.0.0.1", "port": 8000, "transport": "STDIO"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "mcp": {"host": "127.0.0.1", "port": 8000, "transport": "STDIO"},
+            }
+        )
+    )
     monkeypatch.setenv("MCP_DNS_REBINDING_PROTECTION", "true")
     monkeypatch.setenv("MCP_ALLOWED_HOSTS", "mcp.example.com:*, localhost:*")
-    monkeypatch.setenv("MCP_ALLOWED_ORIGINS", "https://mcp.example.com, http://localhost:*")
+    monkeypatch.setenv(
+        "MCP_ALLOWED_ORIGINS", "https://mcp.example.com, http://localhost:*"
+    )
 
     config = load_config(str(config_path))
 
     assert config.mcp.dns_rebinding_protection is True
     assert config.mcp.allowed_hosts == ["mcp.example.com:*", "localhost:*"]
-    assert config.mcp.allowed_origins == ["https://mcp.example.com", "http://localhost:*"]
+    assert config.mcp.allowed_origins == [
+        "https://mcp.example.com",
+        "http://localhost:*",
+    ]
 
 
 def test_env_boolean_overrides_accept_common_values(monkeypatch, tmp_path):
@@ -195,12 +248,25 @@ def test_env_boolean_overrides_reject_invalid_values(monkeypatch):
 def test_server_leaves_transport_security_to_sdk_when_unconfigured(tmp_path):
     """Unconfigured deployments keep the MCP SDK's default transport-security behavior."""
     config_path = tmp_path / "config_http_default_security.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "mcp": {"host": "0.0.0.0", "port": 8000, "transport": "STREAMABLE"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "mcp": {"host": "0.0.0.0", "port": 8000, "transport": "STREAMABLE"},
+            }
+        )
+    )
 
     config = load_config(str(config_path))
     http_server = object.__new__(ProxmoxMCPServer)
@@ -212,19 +278,32 @@ def test_server_leaves_transport_security_to_sdk_when_unconfigured(tmp_path):
 def test_server_applies_configured_transport_security(mock_proxmox, tmp_path):
     """Configured Host and Origin allowlists are passed through to FastMCP."""
     config_path = tmp_path / "config_http_security.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "mcp": {
-            "host": "0.0.0.0",
-            "port": 8000,
-            "transport": "STREAMABLE",
-            "dns_rebinding_protection": True,
-            "allowed_hosts": ["mcp.example.com:*", "localhost:*"],
-            "allowed_origins": ["https://mcp.example.com"],
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "mcp": {
+                    "host": "0.0.0.0",
+                    "port": 8000,
+                    "transport": "STREAMABLE",
+                    "dns_rebinding_protection": True,
+                    "allowed_hosts": ["mcp.example.com:*", "localhost:*"],
+                    "allowed_origins": ["https://mcp.example.com"],
+                },
+            }
+        )
+    )
 
     http_server = ProxmoxMCPServer(str(config_path))
     security = http_server.mcp.settings.transport_security
@@ -242,17 +321,30 @@ def test_server_requires_supported_mcp_sdk_for_configured_transport_security(
 ):
     """Configured transport security should fail clearly on older MCP SDKs."""
     config_path = tmp_path / "config_http_security_old_sdk.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "mcp": {
-            "host": "0.0.0.0",
-            "port": 8000,
-            "transport": "STREAMABLE",
-            "allowed_hosts": ["mcp.example.com:*"],
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "mcp": {
+                    "host": "0.0.0.0",
+                    "port": 8000,
+                    "transport": "STREAMABLE",
+                    "allowed_hosts": ["mcp.example.com:*"],
+                },
+            }
+        )
+    )
     monkeypatch.setattr(server_module, "TransportSecuritySettings", None)
 
     with pytest.raises(RuntimeError, match="mcp>=1.24.0"):
@@ -262,19 +354,32 @@ def test_server_requires_supported_mcp_sdk_for_configured_transport_security(
 def test_server_uses_local_api_tunnel_endpoint(mock_proxmox, tmp_path):
     """API tunnel config should redirect ProxmoxAPI to the local forward."""
     config_path = tmp_path / "config_tunnel.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "remote.proxmox.test", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "api_tunnel": {
-            "enabled": True,
-            "ssh_host": "jump-host",
-            "local_host": "127.0.0.1",
-            "local_port": 18006,
-            "remote_host": "10.0.0.10",
-            "remote_port": 8006,
-        },
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "remote.proxmox.test",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "api_tunnel": {
+                    "enabled": True,
+                    "ssh_host": "jump-host",
+                    "local_host": "127.0.0.1",
+                    "local_port": 18006,
+                    "remote_host": "10.0.0.10",
+                    "remote_port": 8006,
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+            }
+        )
+    )
 
     with patch("proxmox_mcp.core.ssh_tunnel.SSHTunnelManager.ensure_tunnel"):
         ProxmoxMCPServer(str(config_path))
@@ -285,12 +390,25 @@ def test_server_uses_local_api_tunnel_endpoint(mock_proxmox, tmp_path):
 
 def test_loader_blocks_insecure_tls_in_prod(tmp_path):
     config_path = tmp_path / "config_insecure.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": False, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "security": {"dev_mode": False},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": False,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "security": {"dev_mode": False},
+            }
+        )
+    )
 
     with pytest.raises(ValueError, match="Insecure TLS configuration blocked"):
         load_config(str(config_path))
@@ -298,12 +416,25 @@ def test_loader_blocks_insecure_tls_in_prod(tmp_path):
 
 def test_loader_allows_insecure_tls_in_dev_mode(tmp_path):
     config_path = tmp_path / "config_insecure_dev.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": False, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "INFO"},
-        "security": {"dev_mode": True},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": False,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "INFO"},
+                "security": {"dev_mode": True},
+            }
+        )
+    )
 
     config = load_config(str(config_path))
     assert config.proxmox.verify_ssl is False
@@ -359,7 +490,9 @@ async def test_get_containers_schema_avoids_refs(server):
 
     assert "$defs" not in schema
     assert not _schema_contains_key(schema, "$ref")
-    assert {"node", "include_stats", "include_raw", "format_style"}.issubset(schema["properties"])
+    assert {"node", "include_stats", "include_raw", "format_style"}.issubset(
+        schema["properties"]
+    )
     assert "payload" in schema["properties"]
     assert "payload" not in schema.get("required", [])
 
@@ -368,12 +501,25 @@ async def test_get_containers_schema_avoids_refs(server):
 async def test_list_tools_with_ssh_config(mock_proxmox, tmp_path):
     """execute_container_command is registered only when an ssh section is present."""
     config_path = tmp_path / "config_ssh.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "DEBUG"},
-        "ssh": {"user": "mcp-agent", "key_file": "/home/user/.ssh/proxmox_key"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "DEBUG"},
+                "ssh": {"user": "mcp-agent", "key_file": "/home/user/.ssh/proxmox_key"},
+            }
+        )
+    )
 
     with patch.dict(os.environ, {"PROXMOX_MCP_CONFIG": str(config_path)}):
         ssh_server = ProxmoxMCPServer(str(config_path))
@@ -383,12 +529,13 @@ async def test_list_tools_with_ssh_config(mock_proxmox, tmp_path):
     assert "execute_container_command" in tool_names
     assert "update_container_ssh_keys" in tool_names
 
+
 @pytest.mark.asyncio
 async def test_get_nodes(server, mock_proxmox):
     """Test get_nodes tool."""
     mock_proxmox.return_value.nodes.get.return_value = [
         {"node": "node1", "status": "online"},
-        {"node": "node2", "status": "online"}
+        {"node": "node2", "status": "online"},
     ]
     mock_proxmox.return_value.nodes.return_value.status.get.return_value = {
         "status": "online",
@@ -401,24 +548,27 @@ async def test_get_nodes(server, mock_proxmox):
     assert "node1" in text
     assert "node2" in text
 
+
 @pytest.mark.asyncio
 async def test_get_node_status_missing_parameter(server):
     """Test get_node_status tool with missing parameter."""
     with pytest.raises(ToolError, match="Field required"):
         await server.mcp.call_tool("get_node_status", {})
 
+
 @pytest.mark.asyncio
 async def test_get_node_status(server, mock_proxmox):
     """Test get_node_status tool with valid parameter."""
     mock_proxmox.return_value.nodes.return_value.status.get.return_value = {
         "status": "running",
-        "uptime": 123456
+        "uptime": 123456,
     }
 
     response = await server.mcp.call_tool("get_node_status", {"node": "node1"})
     text = response[0].text
     assert "Node: node1" in text
     assert "Status: RUNNING" in text
+
 
 @pytest.mark.asyncio
 async def test_get_node_status_offline_fallback(server, mock_proxmox):
@@ -436,7 +586,9 @@ async def test_get_node_status_offline_fallback(server, mock_proxmox):
 
 
 @pytest.mark.asyncio
-async def test_get_node_status_injects_online_when_api_lacks_status(server, mock_proxmox):
+async def test_get_node_status_injects_online_when_api_lacks_status(
+    server, mock_proxmox
+):
     """Regression for issue #100 Bug 4A.
 
     The /nodes/{node}/status endpoint does NOT return a `status` field, so the
@@ -490,13 +642,16 @@ async def test_get_node_status_falls_back_to_maxcpu(server, mock_proxmox):
     text = response[0].text
     assert "CPU Cores: 32" in text
 
+
 @pytest.mark.asyncio
 async def test_get_vms(server, mock_proxmox):
     """Test get_vms tool."""
-    mock_proxmox.return_value.nodes.get.return_value = [{"node": "node1", "status": "online"}]
+    mock_proxmox.return_value.nodes.get.return_value = [
+        {"node": "node1", "status": "online"}
+    ]
     mock_proxmox.return_value.nodes.return_value.qemu.get.return_value = [
         {"vmid": "100", "name": "vm1", "status": "running"},
-        {"vmid": "101", "name": "vm2", "status": "stopped"}
+        {"vmid": "101", "name": "vm2", "status": "stopped"},
     ]
 
     response = await server.mcp.call_tool("get_vms", {})
@@ -550,9 +705,8 @@ async def test_get_vms_skips_offline_node(server, mock_proxmox):
 
     node1_api = Mock()
     node1_api.qemu.get.return_value = [
-        {"vmid": "100", "name": "vm1", "status": "running"},
+        {"vmid": "100", "name": "vm1", "status": "running", "maxcpu": 2},
     ]
-    node1_api.qemu.return_value.config.get.return_value = {"cores": 2}
 
     node2_api = Mock()
     node2_api.qemu.get.side_effect = Exception("offline")
@@ -599,13 +753,16 @@ async def test_create_vm_passes_resource_pool_to_proxmox(server, mock_proxmox):
 
     assert node_api.qemu.create.call_args.kwargs["pool"] == "claude-lab"
 
+
 @pytest.mark.asyncio
 async def test_get_containers(server, mock_proxmox):
     """Test get_containers tool."""
-    mock_proxmox.return_value.nodes.get.return_value = [{"node": "node1", "status": "online"}]
+    mock_proxmox.return_value.nodes.get.return_value = [
+        {"node": "node1", "status": "online"}
+    ]
     mock_proxmox.return_value.nodes.return_value.lxc.get.return_value = [
         {"vmid": "200", "name": "container1", "status": "running"},
-        {"vmid": "201", "name": "container2", "status": "stopped"}
+        {"vmid": "201", "name": "container2", "status": "stopped"},
     ]
 
     response = await server.mcp.call_tool("get_containers", {"format_style": "json"})
@@ -616,7 +773,9 @@ async def test_get_containers(server, mock_proxmox):
 
 
 @pytest.mark.asyncio
-async def test_get_containers_uses_cluster_inventory_without_stats(server, mock_proxmox):
+async def test_get_containers_uses_cluster_inventory_without_stats(
+    server, mock_proxmox
+):
     """Default container inventory should avoid node and per-container status scans."""
     proxmox = mock_proxmox.return_value
     proxmox.cluster.resources.get.return_value = [
@@ -654,7 +813,9 @@ async def test_get_containers_uses_cluster_inventory_without_stats(server, mock_
 @pytest.mark.asyncio
 async def test_get_containers_includes_raw_payloads_in_json(server, mock_proxmox):
     proxmox = mock_proxmox.return_value
-    proxmox.cluster.resources.get.side_effect = Exception("cluster inventory unavailable")
+    proxmox.cluster.resources.get.side_effect = Exception(
+        "cluster inventory unavailable"
+    )
     proxmox.nodes.get.return_value = [{"node": "node1", "status": "online"}]
     node_api = proxmox.nodes.return_value
     node_api.lxc.get.return_value = [
@@ -683,12 +844,16 @@ async def test_get_containers_includes_raw_payloads_in_json(server, mock_proxmox
 @pytest.mark.asyncio
 async def test_get_containers_accepts_legacy_payload(server, mock_proxmox):
     """Existing clients may still send the pre-0.4.5 nested payload shape."""
-    mock_proxmox.return_value.nodes.get.return_value = [{"node": "node1", "status": "online"}]
+    mock_proxmox.return_value.nodes.get.return_value = [
+        {"node": "node1", "status": "online"}
+    ]
     mock_proxmox.return_value.nodes.return_value.lxc.get.return_value = [
         {"vmid": "200", "name": "container1", "status": "running"},
     ]
 
-    response = await server.mcp.call_tool("get_containers", {"payload": {"format_style": "json"}})
+    response = await server.mcp.call_tool(
+        "get_containers", {"payload": {"format_style": "json"}}
+    )
     result = json.loads(response[0].text)
     assert result[0]["name"] == "container1"
 
@@ -724,6 +889,7 @@ async def test_get_containers_skips_offline_node(server, mock_proxmox):
     assert "container1" in text
     assert "node1" in text
     assert "node2" not in text
+
 
 @pytest.mark.asyncio
 async def test_create_container_with_lxc_options(server, mock_proxmox):
@@ -784,7 +950,10 @@ async def test_create_container_passes_resource_pool_to_proxmox(server, mock_pro
         },
     )
 
-    assert proxmox.nodes.return_value.lxc.create.call_args.kwargs["pool"] == "claude-lab"
+    assert (
+        proxmox.nodes.return_value.lxc.create.call_args.kwargs["pool"] == "claude-lab"
+    )
+
 
 @pytest.mark.asyncio
 async def test_create_container_default_lxc_options(server, mock_proxmox):
@@ -808,10 +977,13 @@ async def test_create_container_default_lxc_options(server, mock_proxmox):
     assert create_kwargs["onboot"] == 0
     assert "features" not in create_kwargs
 
+
 @pytest.mark.asyncio
 async def test_update_container_resources(server, mock_proxmox):
     """Test update_container_resources tool."""
-    mock_proxmox.return_value.nodes.get.return_value = [{"node": "node1", "status": "online"}]
+    mock_proxmox.return_value.nodes.get.return_value = [
+        {"node": "node1", "status": "online"}
+    ]
     mock_proxmox.return_value.nodes.return_value.lxc.get.return_value = [
         {"vmid": "200", "name": "container1", "status": "running"}
     ]
@@ -822,7 +994,14 @@ async def test_update_container_resources(server, mock_proxmox):
 
     response = await server.mcp.call_tool(
         "update_container_resources",
-        {"selector": "node1:200", "cores": 2, "memory": 512, "swap": 256, "disk_gb": 1, "format_style": "json"},
+        {
+            "selector": "node1:200",
+            "cores": 2,
+            "memory": 512,
+            "swap": 256,
+            "disk_gb": 1,
+            "format_style": "json",
+        },
     )
     result = json.loads(response[0].text)
 
@@ -830,12 +1009,13 @@ async def test_update_container_resources(server, mock_proxmox):
     ct_api.config.put.assert_called_with(cores=2, memory=512, swap=256)
     ct_api.resize.put.assert_called_with(disk="rootfs", size="+1G")
 
+
 @pytest.mark.asyncio
 async def test_get_storage(server, mock_proxmox):
     """Test get_storage tool."""
     mock_proxmox.return_value.storage.get.return_value = [
         {"storage": "local", "type": "dir"},
-        {"storage": "ceph", "type": "rbd"}
+        {"storage": "ceph", "type": "rbd"},
     ]
     mock_proxmox.return_value.nodes.return_value.storage.return_value.status.get.return_value = {
         "used": 0,
@@ -916,6 +1096,7 @@ async def test_list_isos_skips_offline_node(server, mock_proxmox):
     assert "node1" in text
     assert "node2" not in text
 
+
 @pytest.mark.asyncio
 async def test_list_backups_skips_offline_node(server, mock_proxmox):
     """Test list_backups skips nodes that error."""
@@ -951,6 +1132,7 @@ async def test_list_backups_skips_offline_node(server, mock_proxmox):
     assert "node1" in text
     assert "node2" not in text
 
+
 @pytest.mark.asyncio
 async def test_get_cluster_status(server, mock_proxmox):
     """Test get_cluster_status tool."""
@@ -965,6 +1147,7 @@ async def test_get_cluster_status(server, mock_proxmox):
     assert "test-cluster" in text
     assert "Quorum: OK" in text
     assert "Nodes: 2" in text
+
 
 @pytest.mark.asyncio
 async def test_execute_vm_command_success(server, mock_proxmox):
@@ -987,11 +1170,9 @@ async def test_execute_vm_command_success(server, mock_proxmox):
         lambda action: exec_endpoint if action == "exec" else status_endpoint
     )
 
-    response = await server.mcp.call_tool("execute_vm_command", {
-        "node": "node1",
-        "vmid": "100",
-        "command": "ls -l"
-    })
+    response = await server.mcp.call_tool(
+        "execute_vm_command", {"node": "node1", "vmid": "100", "command": "ls -l"}
+    )
     text = response[0].text
     assert "Console Command Result" in text
     assert "Status: SUCCESS" in text
@@ -999,7 +1180,9 @@ async def test_execute_vm_command_success(server, mock_proxmox):
 
 
 @pytest.mark.asyncio
-async def test_execute_vm_command_polls_until_command_exits(server, mock_proxmox, monkeypatch):
+async def test_execute_vm_command_polls_until_command_exits(
+    server, mock_proxmox, monkeypatch
+):
     """VM command execution should keep polling exec-status until completion."""
     mock_proxmox.return_value.nodes.return_value.qemu.return_value.status.current.get.return_value = {
         "status": "running"
@@ -1030,11 +1213,10 @@ async def test_execute_vm_command_polls_until_command_exits(server, mock_proxmox
 
     monkeypatch.setattr("proxmox_mcp.tools.console.manager.asyncio.sleep", fast_sleep)
 
-    response = await server.mcp.call_tool("execute_vm_command", {
-        "node": "node1",
-        "vmid": "100",
-        "command": "sleep 2 && echo done"
-    })
+    response = await server.mcp.call_tool(
+        "execute_vm_command",
+        {"node": "node1", "vmid": "100", "command": "sleep 2 && echo done"},
+    )
 
     assert status_endpoint.get.call_count == 2
     assert "Status: SUCCESS" in response[0].text
@@ -1047,6 +1229,7 @@ async def test_execute_vm_command_missing_parameters(server):
     with pytest.raises(ToolError):
         await server.mcp.call_tool("execute_vm_command", {})
 
+
 @pytest.mark.asyncio
 async def test_execute_vm_command_vm_not_running(server, mock_proxmox):
     """Test VM command execution when VM is not running."""
@@ -1055,11 +1238,10 @@ async def test_execute_vm_command_vm_not_running(server, mock_proxmox):
     }
 
     with pytest.raises(ToolError, match="not running"):
-        await server.mcp.call_tool("execute_vm_command", {
-            "node": "node1",
-            "vmid": "100",
-            "command": "ls -l"
-        })
+        await server.mcp.call_tool(
+            "execute_vm_command", {"node": "node1", "vmid": "100", "command": "ls -l"}
+        )
+
 
 @pytest.mark.asyncio
 async def test_execute_vm_command_with_error(server, mock_proxmox):
@@ -1082,11 +1264,10 @@ async def test_execute_vm_command_with_error(server, mock_proxmox):
         lambda action: exec_endpoint if action == "exec" else status_endpoint
     )
 
-    response = await server.mcp.call_tool("execute_vm_command", {
-        "node": "node1",
-        "vmid": "100",
-        "command": "invalid-command"
-    })
+    response = await server.mcp.call_tool(
+        "execute_vm_command",
+        {"node": "node1", "vmid": "100", "command": "invalid-command"},
+    )
     text = response[0].text
     assert "Console Command Result" in text
     assert "Status: FAILED" in text
@@ -1097,20 +1278,37 @@ async def test_execute_vm_command_with_error(server, mock_proxmox):
 async def test_execute_vm_command_blocked_by_policy(mock_proxmox, tmp_path):
     """Deny-all mode blocks commands not explicitly allowlisted."""
     config_path = tmp_path / "config_policy_deny.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "DEBUG"},
-        "command_policy": {"mode": "deny_all"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "DEBUG"},
+                "command_policy": {"mode": "deny_all"},
+            }
+        )
+    )
 
     deny_server = ProxmoxMCPServer(str(config_path))
-    response = await deny_server.mcp.call_tool("execute_vm_command", {
-        "node": "node1",
-        "vmid": "100",
-        "command": "uname -a",
-    })
+    response = await deny_server.mcp.call_tool(
+        "execute_vm_command",
+        {
+            "node": "node1",
+            "vmid": "100",
+            "command": "uname -a",
+        },
+    )
     assert "blocked by policy" in response[0].text.lower()
+
 
 @pytest.mark.asyncio
 async def test_start_vm(server, mock_proxmox):
@@ -1130,7 +1328,10 @@ async def test_clone_vm(server, mock_proxmox):
     proxmox = mock_proxmox.return_value
 
     source_vm_api = Mock()
-    source_vm_api.status.current.get.return_value = {"status": "stopped", "name": "template-9000"}
+    source_vm_api.status.current.get.return_value = {
+        "status": "stopped",
+        "name": "template-9000",
+    }
     source_vm_api.clone.post.return_value = "UPID:clone-100"
 
     target_vm_api = Mock()
@@ -1161,9 +1362,13 @@ async def test_clone_vm(server, mock_proxmox):
 
     assert "clone initiated successfully" in response[0].text
     assert "Job ID:" in response[0].text
-    source_vm_api.clone.post.assert_called_once_with(newid=9100, full=1, name="cloned-vm")
+    source_vm_api.clone.post.assert_called_once_with(
+        newid=9100, full=1, name="cloned-vm"
+    )
 
-    jobs = await server.mcp.call_tool("list_jobs", {"tool_name": "clone_vm", "limit": 1})
+    jobs = await server.mcp.call_tool(
+        "list_jobs", {"tool_name": "clone_vm", "limit": 1}
+    )
     jobs_payload = json.loads(jobs[0].text)
     assert len(jobs_payload) == 1
     assert jobs_payload[0]["tool_name"] == "clone_vm"
@@ -1178,9 +1383,13 @@ async def test_clone_vm(server, mock_proxmox):
 
 
 @pytest.mark.asyncio
-async def test_rollback_snapshot_refuses_to_delete_child_snapshots(server, mock_proxmox):
+async def test_rollback_snapshot_refuses_to_delete_child_snapshots(
+    server, mock_proxmox
+):
     """Rollback must not implicitly delete newer child snapshots."""
-    snapshot_api = mock_proxmox.return_value.nodes.return_value.qemu.return_value.snapshot
+    snapshot_api = (
+        mock_proxmox.return_value.nodes.return_value.qemu.return_value.snapshot
+    )
     snapshot_api.get.return_value = [
         {"name": "base"},
         {"name": "after-base", "parent": "base"},
@@ -1197,11 +1406,10 @@ async def test_rollback_snapshot_refuses_to_delete_child_snapshots(server, mock_
     snapshot_api.return_value.rollback.post.assert_not_called()
 
 
-
-
 # ---------------------------------------------------------------------------
 # get_container_config
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_get_container_config(server, mock_proxmox):
@@ -1240,6 +1448,7 @@ async def test_get_container_config_missing_parameters(server):
 # set_container_description
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_set_container_description(server, mock_proxmox):
     """set_container_description PUTs description and echoes it back."""
@@ -1262,14 +1471,16 @@ async def test_set_container_description(server, mock_proxmox):
 async def test_set_container_description_missing_parameters(server):
     """set_container_description raises ToolError when required parameters are missing."""
     with pytest.raises(ToolError):
-        await server.mcp.call_tool("set_container_description", {"node": "node1", "vmid": "101"})
+        await server.mcp.call_tool(
+            "set_container_description", {"node": "node1", "vmid": "101"}
+        )
 
 
 @pytest.mark.asyncio
 async def test_set_container_description_api_error(server, mock_proxmox):
     """set_container_description surfaces Proxmox API errors via RuntimeError consistently."""
-    mock_proxmox.return_value.nodes.return_value.lxc.return_value.config.put.side_effect = (
-        Exception("permission denied")
+    mock_proxmox.return_value.nodes.return_value.lxc.return_value.config.put.side_effect = Exception(
+        "permission denied"
     )
 
     with pytest.raises(ToolError, match="set_container_description"):
@@ -1282,6 +1493,7 @@ async def test_set_container_description_api_error(server, mock_proxmox):
 # ---------------------------------------------------------------------------
 # get_vm_config
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_get_vm_config(server, mock_proxmox):
@@ -1319,8 +1531,8 @@ async def test_get_vm_config_missing_parameters(server):
 @pytest.mark.asyncio
 async def test_get_vm_config_api_error(server, mock_proxmox):
     """get_vm_config surfaces Proxmox API errors via RuntimeError consistently."""
-    mock_proxmox.return_value.nodes.return_value.qemu.return_value.config.get.side_effect = (
-        Exception("VM does not exist")
+    mock_proxmox.return_value.nodes.return_value.qemu.return_value.config.get.side_effect = Exception(
+        "VM does not exist"
     )
 
     with pytest.raises(ToolError, match="get_vm_config"):
@@ -1330,6 +1542,7 @@ async def test_get_vm_config_api_error(server, mock_proxmox):
 # ---------------------------------------------------------------------------
 # set_vm_description
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_set_vm_description(server, mock_proxmox):
@@ -1353,14 +1566,16 @@ async def test_set_vm_description(server, mock_proxmox):
 async def test_set_vm_description_missing_parameters(server):
     """set_vm_description raises ToolError when required parameters are missing."""
     with pytest.raises(ToolError):
-        await server.mcp.call_tool("set_vm_description", {"node": "node1", "vmid": "100"})
+        await server.mcp.call_tool(
+            "set_vm_description", {"node": "node1", "vmid": "100"}
+        )
 
 
 @pytest.mark.asyncio
 async def test_set_vm_description_api_error(server, mock_proxmox):
     """set_vm_description surfaces Proxmox API errors via RuntimeError consistently."""
-    mock_proxmox.return_value.nodes.return_value.qemu.return_value.config.put.side_effect = (
-        Exception("VM does not exist")
+    mock_proxmox.return_value.nodes.return_value.qemu.return_value.config.put.side_effect = Exception(
+        "VM does not exist"
     )
 
     with pytest.raises(ToolError, match="set_vm_description"):
@@ -1373,6 +1588,7 @@ async def test_set_vm_description_api_error(server, mock_proxmox):
 # ---------------------------------------------------------------------------
 # get_container_ip
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_get_container_ip(server, mock_proxmox):
@@ -1427,16 +1643,30 @@ async def test_get_container_ip_missing_parameters(server):
 # update_container_ssh_keys
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def ssh_server(mock_proxmox, tmp_path):
     """Server fixture with SSH config enabled (required by update_container_ssh_keys)."""
     config_path = tmp_path / "config_ssh.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "DEBUG"},
-        "ssh": {"user": "mcp-agent", "key_file": "/fake/key"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "DEBUG"},
+                "ssh": {"user": "mcp-agent", "key_file": "/fake/key"},
+            }
+        )
+    )
     with patch.dict(os.environ, {"PROXMOX_MCP_CONFIG": str(config_path)}):
         return ProxmoxMCPServer(str(config_path))
 
@@ -1444,7 +1674,12 @@ def ssh_server(mock_proxmox, tmp_path):
 def _mock_console_execute(ssh_server, *, success=True, output=""):
     """Replace console_manager.execute_command with a Mock returning a dict."""
     ssh_server.container_tools.console_manager.execute_command = Mock(
-        return_value={"success": success, "output": output, "error": "", "exit_code": 0 if success else 1}
+        return_value={
+            "success": success,
+            "output": output,
+            "error": "",
+            "exit_code": 0 if success else 1,
+        }
     )
 
 
@@ -1500,20 +1735,35 @@ async def test_update_container_ssh_keys_missing_parameters(ssh_server):
 
 
 @pytest.mark.asyncio
-async def test_update_container_ssh_keys_requires_approval_token(mock_proxmox, tmp_path):
+async def test_update_container_ssh_keys_requires_approval_token(
+    mock_proxmox, tmp_path
+):
     config_path = tmp_path / "config_ssh_high_risk.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "DEBUG"},
-        "ssh": {"user": "mcp-agent", "key_file": "/fake/key"},
-        "command_policy": {
-            "mode": "audit_only",
-            "high_risk_mode": "enforce",
-            "high_risk_require_approval_token": True,
-            "high_risk_approval_token": "approve-me",
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "DEBUG"},
+                "ssh": {"user": "mcp-agent", "key_file": "/fake/key"},
+                "command_policy": {
+                    "mode": "audit_only",
+                    "high_risk_mode": "enforce",
+                    "high_risk_require_approval_token": True,
+                    "high_risk_approval_token": "approve-me",
+                },
+            }
+        )
+    )
     policy_server = ProxmoxMCPServer(str(config_path))
     _mock_console_execute(policy_server)
     console_manager = policy_server.container_tools.console_manager
@@ -1566,17 +1816,30 @@ async def test_tool_metrics_record_calls(server, mock_proxmox):
 @pytest.mark.asyncio
 async def test_high_risk_operation_requires_approval_token(mock_proxmox, tmp_path):
     config_path = tmp_path / "config_high_risk.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "DEBUG"},
-        "command_policy": {
-            "mode": "audit_only",
-            "high_risk_mode": "enforce",
-            "high_risk_require_approval_token": True,
-            "high_risk_approval_token": "approve-me",
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "DEBUG"},
+                "command_policy": {
+                    "mode": "audit_only",
+                    "high_risk_mode": "enforce",
+                    "high_risk_require_approval_token": True,
+                    "high_risk_approval_token": "approve-me",
+                },
+            }
+        )
+    )
 
     policy_server = ProxmoxMCPServer(str(config_path))
 
@@ -1590,18 +1853,31 @@ async def test_high_risk_operation_requires_approval_token(mock_proxmox, tmp_pat
 @pytest.mark.asyncio
 async def test_high_risk_job_retry_requires_approval_token(mock_proxmox, tmp_path):
     config_path = tmp_path / "config_high_risk_retry.json"
-    config_path.write_text(json.dumps({
-        "proxmox": {"host": "test.proxmox.com", "port": 8006, "verify_ssl": True, "service": "PVE"},
-        "auth": {"user": "test@pve", "token_name": "test_token", "token_value": "test_value"},
-        "logging": {"level": "DEBUG"},
-        "jobs": {"sqlite_path": str(tmp_path / "jobs.sqlite3")},
-        "command_policy": {
-            "mode": "audit_only",
-            "high_risk_mode": "enforce",
-            "high_risk_require_approval_token": True,
-            "high_risk_approval_token": "approve-me",
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "proxmox": {
+                    "host": "test.proxmox.com",
+                    "port": 8006,
+                    "verify_ssl": True,
+                    "service": "PVE",
+                },
+                "auth": {
+                    "user": "test@pve",
+                    "token_name": "test_token",
+                    "token_value": "test_value",
+                },
+                "logging": {"level": "DEBUG"},
+                "jobs": {"sqlite_path": str(tmp_path / "jobs.sqlite3")},
+                "command_policy": {
+                    "mode": "audit_only",
+                    "high_risk_mode": "enforce",
+                    "high_risk_require_approval_token": True,
+                    "high_risk_approval_token": "approve-me",
+                },
+            }
+        )
+    )
 
     policy_server = ProxmoxMCPServer(str(config_path))
     retry_factory = Mock(return_value="UPID:retry-delete")
@@ -1617,7 +1893,9 @@ async def test_high_risk_job_retry_requires_approval_token(mock_proxmox, tmp_pat
         await policy_server.mcp.call_tool("retry_job", {"job_id": job["job_id"]})
 
     retry_factory.assert_not_called()
-    policy_server.job_store._conn.execute("UPDATE jobs SET status = 'failed' WHERE job_id = ?", (job["job_id"],))
+    policy_server.job_store._conn.execute(
+        "UPDATE jobs SET status = 'failed' WHERE job_id = ?", (job["job_id"],)
+    )
     policy_server.job_store._conn.commit()
 
     response = await policy_server.mcp.call_tool(

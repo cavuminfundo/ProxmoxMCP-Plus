@@ -69,7 +69,9 @@ class JobRecord:
     cancel_factory: Optional[Callable[[str], Any]] = field(default=None, repr=False)
 
     def add_audit(self, event: str, **details: Any) -> None:
-        self.audit_log.append(JobAuditEvent(timestamp=_utcnow(), event=event, details=details))
+        self.audit_log.append(
+            JobAuditEvent(timestamp=_utcnow(), event=event, details=details)
+        )
         self.updated_at = _utcnow()
 
     def as_dict(self) -> dict[str, Any]:
@@ -98,14 +100,18 @@ class JobRecord:
 class JobStore:
     """Tracks long-running Proxmox tasks behind stable job IDs."""
 
-    def __init__(self, proxmox_api: Any, sqlite_path: str = "proxmox-jobs.sqlite3") -> None:
+    def __init__(
+        self, proxmox_api: Any, sqlite_path: str = "proxmox-jobs.sqlite3"
+    ) -> None:
         self.proxmox = proxmox_api
         self.sqlite_path = str(Path(sqlite_path).expanduser())
         Path(self.sqlite_path).parent.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, JobRecord] = {}
         self._lock = threading.RLock()
         self._retry_handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
-        self._conn = sqlite3.connect(self.sqlite_path, check_same_thread=False, timeout=30.0)
+        self._conn = sqlite3.connect(
+            self.sqlite_path, check_same_thread=False, timeout=30.0
+        )
         self._conn.row_factory = sqlite3.Row
         self._configure_connection()
         self._init_db()
@@ -128,7 +134,9 @@ class JobStore:
         except Exception:
             pass
 
-    def register_retry_handler(self, kind: str, handler: Callable[[dict[str, Any]], Any]) -> None:
+    def register_retry_handler(
+        self, kind: str, handler: Callable[[dict[str, Any]], Any]
+    ) -> None:
         self._retry_handlers[kind] = handler
 
     def register_task(
@@ -197,14 +205,20 @@ class JobStore:
         with self._lock:
             record = self._load_record_from_db(job_id)
             if record.upid != upid:
-                record.add_audit("poll_discarded", stale_upid=upid, current_upid=record.upid)
+                record.add_audit(
+                    "poll_discarded", stale_upid=upid, current_upid=record.upid
+                )
                 self._save_record(record)
                 return record.as_dict()
             record.progress = progress
             record.status = status
             record.last_error = last_error
             record.completed_at = completed_at
-            record.result = status_payload if isinstance(status_payload, dict) else {"raw": status_payload}
+            record.result = (
+                status_payload
+                if isinstance(status_payload, dict)
+                else {"raw": status_payload}
+            )
             record.add_audit(
                 "polled",
                 status=status,
@@ -220,7 +234,9 @@ class JobStore:
             if not record.upid or not record.node:
                 raise JobConflictError(f"Job {job_id} has no task UPID to cancel")
             if record.status in _TERMINAL_STATUSES or record.status == _RETRYING_STATUS:
-                raise JobConflictError(f"Job {job_id} cannot be cancelled while status is '{record.status}'")
+                raise JobConflictError(
+                    f"Job {job_id} cannot be cancelled while status is '{record.status}'"
+                )
             upid = record.upid
             node = record.node
             cancel_factory = record.cancel_factory
@@ -233,11 +249,15 @@ class JobStore:
         with self._lock:
             record = self._load_record_from_db(job_id)
             if record.upid != upid:
-                record.add_audit("cancel_discarded", stale_upid=upid, current_upid=record.upid)
+                record.add_audit(
+                    "cancel_discarded", stale_upid=upid, current_upid=record.upid
+                )
                 self._save_record(record)
                 return record.as_dict()
             if record.status in _TERMINAL_STATUSES or record.status == _RETRYING_STATUS:
-                record.add_audit("cancel_discarded", upid=upid, current_status=record.status)
+                record.add_audit(
+                    "cancel_discarded", upid=upid, current_status=record.status
+                )
                 self._save_record(record)
                 return record.as_dict()
             record.status = "cancel_requested"
@@ -312,7 +332,9 @@ class JobStore:
     def _claim_retry(self, record: JobRecord) -> None:
         previous_status = record.status
         record.status = _RETRYING_STATUS
-        record.add_audit("retry_started", previous_status=previous_status, upid=record.upid)
+        record.add_audit(
+            "retry_started", previous_status=previous_status, upid=record.upid
+        )
         placeholders = ", ".join("?" for _ in _RETRYABLE_STATUSES)
         cursor = self._conn.execute(
             f"""
@@ -405,9 +427,15 @@ class JobStore:
             )
             """
         )
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at DESC)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status_created_at ON jobs (status, created_at DESC)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_tool_created_at ON jobs (tool_name, created_at DESC)")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at DESC)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_status_created_at ON jobs (status, created_at DESC)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_tool_created_at ON jobs (tool_name, created_at DESC)"
+        )
         self._conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (1, _utcnow()),
@@ -438,22 +466,30 @@ class JobStore:
             completed_at=row["completed_at"],
             result=json.loads(row["result_json"]) if row["result_json"] else None,
             metadata=json.loads(row["metadata_json"]) if row["metadata_json"] else {},
-            previous_upids=json.loads(row["previous_upids_json"]) if row["previous_upids_json"] else [],
+            previous_upids=json.loads(row["previous_upids_json"])
+            if row["previous_upids_json"]
+            else [],
             audit_log=[
                 JobAuditEvent(
                     timestamp=item["timestamp"],
                     event=item["event"],
                     details=item.get("details", {}),
                 )
-                for item in (json.loads(row["audit_log_json"]) if row["audit_log_json"] else [])
+                for item in (
+                    json.loads(row["audit_log_json"]) if row["audit_log_json"] else []
+                )
             ],
-            retry_spec=json.loads(row["retry_spec_json"]) if row["retry_spec_json"] else None,
+            retry_spec=json.loads(row["retry_spec_json"])
+            if row["retry_spec_json"]
+            else None,
             retry_factory=existing.retry_factory if existing is not None else None,
             cancel_factory=existing.cancel_factory if existing is not None else None,
         )
 
     def _load_record_from_db(self, job_id: str) -> JobRecord:
-        row = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
         if row is None:
             self._jobs.pop(job_id, None)
             raise JobNotFoundError(f"Unknown job_id: {job_id}")
@@ -510,11 +546,15 @@ class JobStore:
                 record.retry_count,
                 record.last_error,
                 record.completed_at,
-                json.dumps(record.result, sort_keys=True) if record.result is not None else None,
+                json.dumps(record.result, sort_keys=True)
+                if record.result is not None
+                else None,
                 json.dumps(record.metadata, sort_keys=True),
                 json.dumps(record.previous_upids),
                 json.dumps([item.as_dict() for item in record.audit_log]),
-                json.dumps(record.retry_spec, sort_keys=True) if record.retry_spec is not None else None,
+                json.dumps(record.retry_spec, sort_keys=True)
+                if record.retry_spec is not None
+                else None,
             ),
         )
         self._conn.commit()
@@ -533,10 +573,14 @@ class JobStore:
                 value = int(match.group("value"))
                 if value > 100:
                     continue
-                max_progress = value if max_progress is None else max(max_progress, value)
+                max_progress = (
+                    value if max_progress is None else max(max_progress, value)
+                )
         return max_progress
 
-    def _normalize_status(self, status_payload: Any) -> tuple[str, Optional[str], Optional[str]]:
+    def _normalize_status(
+        self, status_payload: Any
+    ) -> tuple[str, Optional[str], Optional[str]]:
         now = _utcnow()
         if not isinstance(status_payload, dict):
             return "unknown", None, None
@@ -556,53 +600,130 @@ class JobStore:
         return "running", None, None
 
     def _register_builtin_retry_handlers(self) -> None:
-        self.register_retry_handler("vm.create", lambda params: self.proxmox.nodes(params["node"]).qemu.create(**params["vm_config"]))
+        self.register_retry_handler(
+            "vm.create",
+            lambda params: self.proxmox.nodes(params["node"]).qemu.create(
+                **params["vm_config"]
+            ),
+        )
         self.register_retry_handler(
             "vm.clone",
-            lambda params: self.proxmox.nodes(params["node"]).qemu(params["source_vmid"]).clone.post(**params["clone_payload"]),
+            lambda params: self.proxmox.nodes(params["node"])
+            .qemu(params["source_vmid"])
+            .clone.post(**params["clone_payload"]),
         )
-        self.register_retry_handler("vm.start", lambda params: self.proxmox.nodes(params["node"]).qemu(params["vmid"]).status.start.post())
-        self.register_retry_handler("vm.stop", lambda params: self.proxmox.nodes(params["node"]).qemu(params["vmid"]).status.stop.post())
-        self.register_retry_handler("vm.shutdown", lambda params: self.proxmox.nodes(params["node"]).qemu(params["vmid"]).status.shutdown.post())
-        self.register_retry_handler("vm.reset", lambda params: self.proxmox.nodes(params["node"]).qemu(params["vmid"]).status.reset.post())
-        self.register_retry_handler("vm.delete", lambda params: self.proxmox.nodes(params["node"]).qemu(params["vmid"]).delete())
-        self.register_retry_handler("ct.start", lambda params: self.proxmox.nodes(params["node"]).lxc(params["vmid"]).status.start.post())
+        self.register_retry_handler(
+            "vm.start",
+            lambda params: self.proxmox.nodes(params["node"])
+            .qemu(params["vmid"])
+            .status.start.post(),
+        )
+        self.register_retry_handler(
+            "vm.stop",
+            lambda params: self.proxmox.nodes(params["node"])
+            .qemu(params["vmid"])
+            .status.stop.post(),
+        )
+        self.register_retry_handler(
+            "vm.shutdown",
+            lambda params: self.proxmox.nodes(params["node"])
+            .qemu(params["vmid"])
+            .status.shutdown.post(),
+        )
+        self.register_retry_handler(
+            "vm.reset",
+            lambda params: self.proxmox.nodes(params["node"])
+            .qemu(params["vmid"])
+            .status.reset.post(),
+        )
+        self.register_retry_handler(
+            "vm.delete",
+            lambda params: self.proxmox.nodes(params["node"])
+            .qemu(params["vmid"])
+            .delete(),
+        )
+        self.register_retry_handler(
+            "ct.start",
+            lambda params: self.proxmox.nodes(params["node"])
+            .lxc(params["vmid"])
+            .status.start.post(),
+        )
         self.register_retry_handler(
             "ct.stop",
             lambda params: (
-                self.proxmox.nodes(params["node"]).lxc(params["vmid"]).status.shutdown.post(timeout=params.get("timeout_seconds", 10))
+                self.proxmox.nodes(params["node"])
+                .lxc(params["vmid"])
+                .status.shutdown.post(timeout=params.get("timeout_seconds", 10))
                 if params.get("graceful", True)
-                else self.proxmox.nodes(params["node"]).lxc(params["vmid"]).status.stop.post()
+                else self.proxmox.nodes(params["node"])
+                .lxc(params["vmid"])
+                .status.stop.post()
             ),
         )
-        self.register_retry_handler("ct.restart", lambda params: self.proxmox.nodes(params["node"]).lxc(params["vmid"]).status.reboot.post())
-        self.register_retry_handler("ct.create", lambda params: self.proxmox.nodes(params["node"]).lxc.create(**params["ct_config"]))
-        self.register_retry_handler("ct.delete", lambda params: self.proxmox.nodes(params["node"]).lxc(params["vmid"]).delete())
+        self.register_retry_handler(
+            "ct.restart",
+            lambda params: self.proxmox.nodes(params["node"])
+            .lxc(params["vmid"])
+            .status.reboot.post(),
+        )
+        self.register_retry_handler(
+            "ct.create",
+            lambda params: self.proxmox.nodes(params["node"]).lxc.create(
+                **params["ct_config"]
+            ),
+        )
+        self.register_retry_handler(
+            "ct.delete",
+            lambda params: self.proxmox.nodes(params["node"])
+            .lxc(params["vmid"])
+            .delete(),
+        )
         self.register_retry_handler(
             "snapshot.create",
             lambda params: (
-                self.proxmox.nodes(params["node"]).lxc(params["vmid"]).snapshot.post(**params["request"])
+                self.proxmox.nodes(params["node"])
+                .lxc(params["vmid"])
+                .snapshot.post(**params["request"])
                 if params["vm_type"] == "lxc"
-                else self.proxmox.nodes(params["node"]).qemu(params["vmid"]).snapshot.post(**params["request"])
+                else self.proxmox.nodes(params["node"])
+                .qemu(params["vmid"])
+                .snapshot.post(**params["request"])
             ),
         )
         self.register_retry_handler(
             "snapshot.delete",
             lambda params: (
-                self.proxmox.nodes(params["node"]).lxc(params["vmid"]).snapshot(params["snapname"]).delete()
+                self.proxmox.nodes(params["node"])
+                .lxc(params["vmid"])
+                .snapshot(params["snapname"])
+                .delete()
                 if params["vm_type"] == "lxc"
-                else self.proxmox.nodes(params["node"]).qemu(params["vmid"]).snapshot(params["snapname"]).delete()
+                else self.proxmox.nodes(params["node"])
+                .qemu(params["vmid"])
+                .snapshot(params["snapname"])
+                .delete()
             ),
         )
         self.register_retry_handler(
             "snapshot.rollback",
             lambda params: (
-                self.proxmox.nodes(params["node"]).lxc(params["vmid"]).snapshot(params["snapname"]).rollback.post()
+                self.proxmox.nodes(params["node"])
+                .lxc(params["vmid"])
+                .snapshot(params["snapname"])
+                .rollback.post()
                 if params["vm_type"] == "lxc"
-                else self.proxmox.nodes(params["node"]).qemu(params["vmid"]).snapshot(params["snapname"]).rollback.post()
+                else self.proxmox.nodes(params["node"])
+                .qemu(params["vmid"])
+                .snapshot(params["snapname"])
+                .rollback.post()
             ),
         )
-        self.register_retry_handler("backup.create", lambda params: self.proxmox.nodes(params["node"]).vzdump.post(**params["request"]))
+        self.register_retry_handler(
+            "backup.create",
+            lambda params: self.proxmox.nodes(params["node"]).vzdump.post(
+                **params["request"]
+            ),
+        )
         self.register_retry_handler(
             "backup.restore",
             lambda params: (
@@ -613,13 +734,21 @@ class JobStore:
         )
         self.register_retry_handler(
             "backup.delete",
-            lambda params: self.proxmox.nodes(params["node"]).storage(params["storage"]).content(params["volid"]).delete(),
+            lambda params: self.proxmox.nodes(params["node"])
+            .storage(params["storage"])
+            .content(params["volid"])
+            .delete(),
         )
         self.register_retry_handler(
             "iso.download",
-            lambda params: self.proxmox.nodes(params["node"]).storage(params["storage"])("download-url").post(**params["request"]),
+            lambda params: self.proxmox.nodes(params["node"])
+            .storage(params["storage"])("download-url")
+            .post(**params["request"]),
         )
         self.register_retry_handler(
             "iso.delete",
-            lambda params: self.proxmox.nodes(params["node"]).storage(params["storage"]).content(params["volid"]).delete(),
+            lambda params: self.proxmox.nodes(params["node"])
+            .storage(params["storage"])
+            .content(params["volid"])
+            .delete(),
         )

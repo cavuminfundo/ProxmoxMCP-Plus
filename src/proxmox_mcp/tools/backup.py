@@ -108,7 +108,9 @@ class BackupTools(ProxmoxTool):
                             params["vmid"] = int(vmid)
 
                         content = _as_list(
-                            self.proxmox.nodes(node_name).storage(storage_name).content.get(**params)
+                            self.proxmox.nodes(node_name)
+                            .storage(storage_name)
+                            .content.get(**params)
                         )
                         for item in content:
                             item["_node"] = node_name
@@ -210,9 +212,14 @@ class BackupTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"vmid": vmid, "storage": storage},
-                retry_spec={"kind": "backup.create", "params": {"node": node, "request": params}},
+                retry_spec={
+                    "kind": "backup.create",
+                    "params": {"node": node, "request": params},
+                },
                 retry_factory=lambda: self.proxmox.nodes(node).vzdump.post(**params),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -228,14 +235,16 @@ class BackupTools(ProxmoxTool):
             if notes:
                 lines.append(f"  - Notes: {notes}")
 
-            lines.extend([
-                "",
-                f"Task ID: {result}",
-                f"Job ID: {job['job_id'] if job else 'n/a'}",
-                "",
-                "The backup is running in the background.",
-                "Use list_backups to verify when complete.",
-            ])
+            lines.extend(
+                [
+                    "",
+                    f"Task ID: {result}",
+                    f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    "",
+                    "The backup is running in the background.",
+                    "Use list_backups to verify when complete.",
+                ]
+            )
 
             return [Content(type="text", text="\n".join(lines))]
 
@@ -291,13 +300,18 @@ class BackupTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"archive": archive, "vmid": vmid, "storage": storage},
-                retry_spec={"kind": "backup.restore", "params": {"node": node, "request": params, "is_lxc": is_lxc}},
+                retry_spec={
+                    "kind": "backup.restore",
+                    "params": {"node": node, "request": params, "is_lxc": is_lxc},
+                },
                 retry_factory=(
                     (lambda: self.proxmox.nodes(node).lxc.post(**params))
                     if is_lxc
                     else (lambda: self.proxmox.nodes(node).qemu.post(**params))
                 ),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -313,14 +327,16 @@ class BackupTools(ProxmoxTool):
 
             lines.append(f"  - Unique MACs: {'Yes' if unique else 'No'}")
 
-            lines.extend([
-                "",
-                f"Task ID: {result}",
-                f"Job ID: {job['job_id'] if job else 'n/a'}",
-                "",
-                "The restore is running in the background.",
-                f"The {vm_type.lower()} will be available once the task completes.",
-            ])
+            lines.extend(
+                [
+                    "",
+                    f"Task ID: {result}",
+                    f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    "",
+                    "The restore is running in the background.",
+                    f"The {vm_type.lower()} will be available once the task completes.",
+                ]
+            )
 
             return [Content(type="text", text="\n".join(lines))]
 
@@ -358,11 +374,13 @@ class BackupTools(ProxmoxTool):
                     break
 
             if backup_info and _get(backup_info, "protected"):
-                return [Content(
-                    type="text",
-                    text=f"Error: Backup '{volid}' is protected and cannot be deleted.\n"
-                         f"Remove protection first if you want to delete it."
-                )]
+                return [
+                    Content(
+                        type="text",
+                        text=f"Error: Backup '{volid}' is protected and cannot be deleted.\n"
+                        f"Remove protection first if you want to delete it.",
+                    )
+                ]
 
             result = self.proxmox.nodes(node).storage(storage).content(volid).delete()
             job = self._register_background_job(
@@ -371,9 +389,17 @@ class BackupTools(ProxmoxTool):
                 node=node,
                 upid=result,
                 metadata={"storage": storage, "volid": volid},
-                retry_spec={"kind": "backup.delete", "params": {"node": node, "storage": storage, "volid": volid}},
-                retry_factory=lambda: self.proxmox.nodes(node).storage(storage).content(volid).delete(),
-                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).status.stop.post(),
+                retry_spec={
+                    "kind": "backup.delete",
+                    "params": {"node": node, "storage": storage, "volid": volid},
+                },
+                retry_factory=lambda: self.proxmox.nodes(node)
+                .storage(storage)
+                .content(volid)
+                .delete(),
+                cancel_factory=lambda upid: self.proxmox.nodes(node)
+                .tasks(upid)
+                .status.stop.post(),
             )
 
             lines = [
@@ -385,7 +411,13 @@ class BackupTools(ProxmoxTool):
             ]
 
             if result:
-                lines.extend(["", f"Task ID: {result}", f"Job ID: {job['job_id'] if job else 'n/a'}"])
+                lines.extend(
+                    [
+                        "",
+                        f"Task ID: {result}",
+                        f"Job ID: {job['job_id'] if job else 'n/a'}",
+                    ]
+                )
 
             return [Content(type="text", text="\n".join(lines))]
 
