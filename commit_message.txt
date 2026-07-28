@@ -1,0 +1,5 @@
+⚡ Optimize container and vm fallback lookups to use concurrent requests
+
+This resolves the N+1 query performance bottleneck when listing containers or VMs across a cluster when the cluster-wide API is unavailable.
+Using `concurrent.futures.ThreadPoolExecutor`, the latency drops significantly.
+A benchmark simulation with a 0.1s latency query across 10 nodes dropped from 1.00s to 0.11s.

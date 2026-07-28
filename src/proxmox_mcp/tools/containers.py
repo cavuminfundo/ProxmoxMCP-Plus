@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Tuple, Any, Union, Callable
 import json
+import concurrent.futures
 from mcp.types import TextContent as Content
 from proxmox_mcp.models import ToolResult
 from .base import ProxmoxTool
@@ -119,51 +120,42 @@ class ContainerTools(ProxmoxTool):
             return cluster_pairs
 
         out: List[Tuple[str, Dict]] = []
+        nodes_to_query = []
         if node:
-            try:
-                raw = self.proxmox.nodes(node).lxc.get()
-            except Exception as e:
-                self.logger.warning(
-                    "Skipping node %s while listing containers: %s", node, e
-                )
-                return out
-
-            for it in _as_list(raw):
-                if isinstance(it, dict):
-                    out.append((node, it))
-                else:
-                    try:
-                        vmid = int(it)
-                        out.append((node, {"vmid": vmid}))
-                    except Exception:
-                        continue
+            nodes_to_query.append(node)
         else:
             try:
                 nodes = _as_list(self.proxmox.nodes.get())
+                nodes_to_query = [_get(n, "node") for n in nodes if _get(n, "node")]
             except Exception as e:
                 self._handle_error("list containers", e)
 
-            for n in nodes:
-                nname = _get(n, "node")
-                if not nname:
-                    continue
-                try:
-                    raw = self.proxmox.nodes(nname).lxc.get()
-                except Exception as node_error:
-                    self.logger.warning(
-                        "Skipping node %s while listing containers: %s", nname, node_error
-                    )
-                    continue
+        def fetch_node(nname: str) -> Tuple[str, List[Any]]:
+            try:
+                return nname, _as_list(self.proxmox.nodes(nname).lxc.get())
+            except Exception as node_error:
+                self.logger.warning(
+                    "Skipping node %s while listing containers: %s", nname, node_error
+                )
+                return nname, []
 
-                for it in _as_list(raw):
-                    if isinstance(it, dict):
-                        out.append((nname, it))
-                    else:
-                        try:
-                            vmid = int(it)
-                            out.append((nname, {"vmid": vmid}))
-                        except Exception:
-                            continue
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(fetch_node, nname) for nname in nodes_to_query]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    nname, raw = future.result()
+                    for it in raw:
+                        if isinstance(it, dict):
+                            out.append((nname, it))
+                        else:
+                            try:
+                                vmid = int(it)
+                                out.append((nname, {"vmid": vmid}))
+                            except Exception:
+                                continue
+                except Exception as e:
+                    self.logger.warning("Error fetching container list: %s", e)
+
         return out
 
     def _rrd_last(self, node: str, vmid: int) -> Tuple[Optional[float], Optional[int], Optional[int]]:

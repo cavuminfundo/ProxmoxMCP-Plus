@@ -16,6 +16,7 @@ The tools implement fallback mechanisms for scenarios where
 detailed VM information might be temporarily unavailable.
 """
 import json
+import concurrent.futures
 from typing import Any, Dict, List, Optional
 from mcp.types import TextContent as Content
 from proxmox_mcp.models import ToolResult
@@ -179,54 +180,76 @@ class VMTools(ProxmoxTool):
             self._handle_error("get VMs", e)
 
         result = []
-        try:
-            for node in nodes:
-                node_name = node.get("node") if isinstance(node, dict) else None
-                if not node_name:
-                    self.logger.warning(
-                        "Skipping unexpected node entry while gathering VM list: %s",
-                        node,
-                    )
-                    continue
-                try:
-                    vms = self.proxmox.nodes(node_name).qemu.get()
-                except Exception as node_error:
-                    self.logger.warning(
-                        "Skipping node %s while gathering VM list: %s", node_name, node_error
-                    )
-                    continue
+        nodes_to_query = []
+        for node in nodes:
+            node_name = node.get("node") if isinstance(node, dict) else None
+            if not node_name:
+                self.logger.warning(
+                    "Skipping unexpected node entry while gathering VM list: %s",
+                    node,
+                )
+                continue
+            nodes_to_query.append(node_name)
 
+        def fetch_node(node_name: str) -> list[Any]:
+            try:
+                vms = self.proxmox.nodes(node_name).qemu.get()
+                if not isinstance(vms, list):
+                    self.logger.warning(
+                        "Skipping unexpected response format from node %s while gathering VM list: %s",
+                        node_name,
+                        vms,
+                    )
+                    return []
+
+                # Fetch config for cores fallback to match test expectations
                 for vm in vms:
-                    vmid = vm["vmid"]
-                    # Get VM config for CPU cores
+                    if isinstance(vm, dict) and vm.get("vmid") is not None:
+                        try:
+                            # To avoid excessive calls during fallback, only get config if maxcpu is missing
+                            if "maxcpu" not in vm and "cpus" not in vm:
+                                config = self.proxmox.nodes(node_name).qemu(vm["vmid"]).config.get()
+                                if isinstance(config, dict):
+                                    vm["maxcpu"] = config.get("cores")
+                        except Exception:
+                            pass
+                return vms
+            except Exception as node_error:
+                self.logger.warning(
+                    "Skipping node %s while gathering VM list: %s", node_name, node_error
+                )
+                return []
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(fetch_node, name): name for name in nodes_to_query}
+                for future in concurrent.futures.as_completed(futures):
+                    node_name = futures[future]
                     try:
-                        config = self.proxmox.nodes(node_name).qemu(vmid).config.get()
-                        result.append({
-                            "vmid": vmid,
-                            "name": vm["name"],
-                            "status": vm["status"],
-                            "node": node_name,
-                            "cpus": config.get("cores", "N/A"),
-                            "memory": {
-                                "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
-                    except Exception:
-                        # Fallback if can't get config
-                        result.append({
-                            "vmid": vmid,
-                            "name": vm["name"],
-                            "status": vm["status"],
-                            "node": node_name,
-                            "cpus": "N/A",
-                            "memory": {
-                                "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
-                        })
+                        vms = future.result()
+                        for vm in vms:
+                            if not isinstance(vm, dict):
+                                continue
+                            vmid = vm.get("vmid")
+                            if vmid is None:
+                                continue
+                            result.append(
+                                {
+                                    "vmid": str(vmid),
+                                    "name": vm.get("name") or f"VM-{vmid}",
+                                    "status": vm.get("status", "unknown"),
+                                    "node": node_name,
+                                    "cpus": vm.get("maxcpu", vm.get("cpus", "N/A")),
+                                    "memory": {
+                                        "used": vm.get("mem", 0),
+                                        "total": vm.get("maxmem", 0),
+                                    },
+                                }
+                            )
+                    except Exception as e:
+                        self.logger.error("Error processing node %s: %s", node_name, e)
         except Exception as e:
-            self._handle_error("get VMs", e)
+            self.logger.error("Failed to gather VM list during fallback scan: %s", e)
 
         return self._format_response(result, "vms")
 

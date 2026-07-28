@@ -190,7 +190,6 @@ class BackupTools(ProxmoxTool):
 
                     for f_future in concurrent.futures.as_completed(fallback_content_futures):
                         results.extend(f_future.result())
-                        results.extend(future.result())
 
             if not results:
                 msg = "No backups found"

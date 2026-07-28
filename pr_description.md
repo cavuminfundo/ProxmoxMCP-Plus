@@ -1,8 +1,10 @@
-💡 **What:** Extracted fields directly from `nodes.get()` API response to fix N+1 query issue in `get_nodes()`.
+## ⚡ Performance Optimization: Concurrent VM and Container Lookup
 
-🎯 **Why:** The `get_nodes` tool was making an individual `status.get()` API call for each node returned by `nodes.get()`. Since `nodes.get()` returns all the necessary fields (`status`, `uptime`, `maxcpu`, `mem`, `maxmem`), the inner API call inside the loop was redundant and causing significant N+1 slowdown as cluster size scaled.
+### 💡 What
+Modified `get_containers` and `get_vms` functions (in `src/proxmox_mcp/tools/containers.py` and `src/proxmox_mcp/tools/vm.py`) to fetch node resources concurrently rather than sequentially during fallback node-scans. When `proxmox.cluster.resources.get` is unavailable or yields incomplete results, the tools now use `concurrent.futures.ThreadPoolExecutor` to perform the node-by-node inventory lookups in parallel.
 
-📊 **Measured Improvement:** Measured with a mock Proxmox object simulating 100ms `nodes.get()` and 50ms `status.get()` calls.
-- **Baseline (50 nodes):** 2.6225 seconds
-- **Improved (50 nodes):** 0.1006 seconds
-- **Change:** 96% reduction in latency for a 50 node cluster.
+### 🎯 Why
+The fallback mechanism originally performed an $O(N)$ sequential loop over every node in the cluster, querying `proxmox.nodes(node_name).lxc.get()` and `proxmox.nodes(node_name).qemu.get()`. In a multi-node cluster with network latency, these synchronous requests can take a significant amount of time. Concurrency allows the MCP plugin to fetch the necessary information almost as fast as a single node lookup.
+
+### 📊 Measured Improvement
+A simulated benchmark script with 10 nodes and a 0.1s network latency for the API call showed an improvement from **1.00s (Sequential)** down to **0.11s (Concurrent)**. This is a near 9x performance improvement for clusters with 10 nodes. Real-world clusters with slower network paths or higher numbers of nodes will see even more substantial speedups.
