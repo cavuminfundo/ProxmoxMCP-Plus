@@ -12,7 +12,8 @@ This module provides tools for managing and monitoring Proxmox nodes:
 The tools handle both basic and detailed node information retrieval,
 with fallback mechanisms for partial data availability.
 """
-from typing import List
+import json
+from typing import List, Any
 import math
 from mcp.types import TextContent as Content
 from proxmox_mcp.tools.base import ProxmoxTool
@@ -73,10 +74,22 @@ class NodeTools(ProxmoxTool):
         try:
             result = self._call_with_retry("get nodes", lambda: self.proxmox.nodes.get())
             nodes = []
-            
-            # Get detailed info for each node
+
             for node in result:
                 node_name = node["node"]
+                if "uptime" in node and "maxcpu" in node and "mem" in node and "maxmem" in node:
+                    nodes.append({
+                        "node": node_name,
+                        "status": node.get("status", "unknown"),
+                        "uptime": node.get("uptime", 0),
+                        "maxcpu": node.get("maxcpu", "N/A"),
+                        "memory": {
+                            "used": node.get("mem", 0),
+                            "total": node.get("maxmem", 0),
+                        },
+                    })
+                    continue
+
                 try:
                     # Get detailed status for each node
                     status = self.proxmox.nodes(node_name).status.get()
@@ -87,8 +100,8 @@ class NodeTools(ProxmoxTool):
                         "maxcpu": status.get("cpuinfo", {}).get("cpus", "N/A"),
                         "memory": {
                             "used": status.get("memory", {}).get("used", 0),
-                            "total": status.get("memory", {}).get("total", 0)
-                        }
+                            "total": status.get("memory", {}).get("total", 0),
+                        },
                     })
                 except Exception as node_error:
                     self.logger.warning(
@@ -103,14 +116,9 @@ class NodeTools(ProxmoxTool):
                         "uptime": 0,
                         "maxcpu": "N/A",
                         "memory": {
-                            # The nodes.get() API already returns memory usage
-                            # in the "mem" field, so use that directly. The
-                            # previous implementation subtracted this value
-                            # from "maxmem" which actually produced the amount
-                            # of *free* memory instead of the used memory.
                             "used": node.get("mem", 0),
-                            "total": node.get("maxmem", 0)
-                        }
+                            "total": node.get("maxmem", 0),
+                        },
                     })
             self._cache_set("nodes:list", nodes, ttl_seconds=5)
             return self._format_response(nodes, "nodes")
@@ -275,3 +283,87 @@ class NodeTools(ProxmoxTool):
             })
         except Exception as error:
             self._handle_error(f"get diagnostics for node {node}", error)
+
+    def _json_fmt(self, data: Any) -> List[Content]:
+        """Return raw JSON string."""
+        return [Content(type="text", text=json.dumps(data, indent=2, sort_keys=True))]
+
+    def get_apt_updates(self, node: str) -> List[Content]:
+        """Get list of available APT package updates for a specific node."""
+        try:
+            updates = self.proxmox.nodes(node).apt.update.get()
+            return self._json_fmt((node, updates))
+        except Exception as e:
+            self._handle_error(f"get APT updates for node {node}", e)
+
+    def refresh_apt_repositories(self, node: str) -> List[Content]:
+        """Trigger an APT package repository refresh (apt-get update) on a node."""
+        try:
+            upid = self.proxmox.nodes(node).apt.update.post()
+            return self._json_fmt({"node": node, "status": "task_started", "upid": upid})
+        except Exception as e:
+            self._handle_error(f"refresh APT repositories for node {node}", e)
+
+    def upgrade_apt_packages(self, node: str) -> List[Content]:
+        """Trigger an APT package upgrade via Proxmox API on a node."""
+        try:
+            upid = self.proxmox.nodes(node).apt.upgrade.post()
+            return self._json_fmt({"node": node, "status": "task_started", "upid": upid})
+        except Exception as e:
+            self._handle_error(f"upgrade APT packages for node {node}", e)
+
+    def get_node_disks(self, node: str) -> List[Content]:
+        """List physical disks, partitions, and health info on a Proxmox node."""
+        try:
+            disks = self.proxmox.nodes(node).disks.list.get()
+            return self._json_fmt((node, disks))
+        except Exception as e:
+            self._handle_error(f"get disks for node {node}", e)
+
+    def get_smart_status(self, node: str, disk: str) -> List[Content]:
+        """Get SMART attributes, health status, and wearout info for a specific disk."""
+        try:
+            smart = self.proxmox.nodes(node).disks.smart.get(disk=disk)
+            return self._json_fmt((node, disk, smart))
+        except Exception as e:
+            self._handle_error(f"get SMART status for disk {disk} on node {node}", e)
+
+    def get_node_journal(self, node: str, last_lines: int = 100) -> List[Content]:
+        """Get recent systemd journal logs from a Proxmox node."""
+        try:
+            journal = self.proxmox.nodes(node).journal.get(last_lines=last_lines)
+            return self._json_fmt((node, journal))
+        except Exception as e:
+            self._handle_error(f"get journal logs for node {node}", e)
+
+    def get_node_services(self, node: str) -> List[Content]:
+        """List systemd services and their running status on a Proxmox node."""
+        try:
+            services = self.proxmox.nodes(node).services.get()
+            return self._json_fmt((node, services))
+        except Exception as e:
+            self._handle_error(f"get services for node {node}", e)
+
+    def restart_node_service(self, node: str, service: str) -> List[Content]:
+        """Restart a specific systemd service on a Proxmox node."""
+        try:
+            res = self.proxmox.nodes(node).services(service).restart.post()
+            return self._json_fmt({"node": node, "service": service, "status": "restarted", "result": res})
+        except Exception as e:
+            self._handle_error(f"restart service {service} on node {node}", e)
+
+    def get_node_network(self, node: str) -> List[Content]:
+        """Get network interfaces configuration and status on a Proxmox node."""
+        try:
+            net = self.proxmox.nodes(node).network.get()
+            return self._json_fmt((node, net))
+        except Exception as e:
+            self._handle_error(f"get network for node {node}", e)
+
+    def get_node_tasks(self, node: str, limit: int = 50) -> List[Content]:
+        """Get history of active and recent tasks on a Proxmox node."""
+        try:
+            tasks = self.proxmox.nodes(node).tasks.get(limit=limit)
+            return self._json_fmt((node, tasks))
+        except Exception as e:
+            self._handle_error(f"get tasks for node {node}", e)

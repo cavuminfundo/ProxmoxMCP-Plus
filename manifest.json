@@ -115,6 +115,46 @@
             "description": "Read per-node CPU, memory, storage and recent disk/network metrics"
         },
         {
+            "name": "get_apt_updates",
+            "description": "Get list of available APT package updates for a specific Proxmox node"
+        },
+        {
+            "name": "refresh_apt_repositories",
+            "description": "Refresh APT package repositories (apt-get update) for a specific Proxmox node"
+        },
+        {
+            "name": "upgrade_apt_packages",
+            "description": "Trigger an APT package upgrade (apt-get dist-upgrade) via Proxmox PVE API for a node"
+        },
+        {
+            "name": "get_node_disks",
+            "description": "List physical disks, partitions, size, and wearout status on a Proxmox node"
+        },
+        {
+            "name": "get_smart_status",
+            "description": "Get SMART health attributes, temperature, and wearout info for a disk"
+        },
+        {
+            "name": "get_node_journal",
+            "description": "Get recent systemd journal logs from a Proxmox host node"
+        },
+        {
+            "name": "get_node_services",
+            "description": "List systemd services and running status on a Proxmox node"
+        },
+        {
+            "name": "restart_node_service",
+            "description": "Restart a systemd service on a Proxmox node"
+        },
+        {
+            "name": "get_node_network",
+            "description": "Get network interfaces configuration for a Proxmox node"
+        },
+        {
+            "name": "get_node_tasks",
+            "description": "Get history of active and recent tasks executed on a Proxmox node"
+        },
+        {
             "name": "get_vms",
             "description": "List all virtual machines across the cluster"
         },

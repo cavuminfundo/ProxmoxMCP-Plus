@@ -43,6 +43,69 @@ node* - Name/ID of node to query (e.g. 'pve1')
 Example:
 {"cpu": {"usage": 0.15}, "memory": {"used": "8GB", "total": "32GB"}}"""
 
+GET_APT_UPDATES_DESC = """Get list of available APT package updates for a specific Proxmox node.
+
+Parameters:
+node* - Name/ID of node to query (e.g. 'proxmox1')
+
+Example:
+[{"package": "pve-manager", "title": "PVE Manager", "version": "8.2.4", "old_version": "8.2.2"}]"""
+
+REFRESH_APT_REPOSITORIES_DESC = """Refresh APT package repositories (apt-get update) for a specific Proxmox node.
+
+Parameters:
+node* - Name/ID of node to query (e.g. 'proxmox1')
+
+Example:
+{"status": "task_started", "upid": "UPID:proxmox1:000123..."}"""
+
+UPGRADE_APT_PACKAGES_DESC = """Trigger an APT package upgrade (apt-get dist-upgrade) via Proxmox PVE API for a node.
+
+Parameters:
+node* - Name/ID of node to upgrade (e.g. 'proxmox1')
+
+Example:
+{"status": "task_started", "upid": "UPID:proxmox1:000123..."}"""
+
+GET_NODE_DISKS_DESC = """List physical disks, partitions, size, and wearout status on a Proxmox node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')"""
+
+GET_SMART_STATUS_DESC = """Get SMART health attributes, temperature, and wearout info for a specific disk on a node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+disk* - Disk device identifier (e.g. '/dev/sda', 'nvme0n1')"""
+
+GET_NODE_JOURNAL_DESC = """Get recent systemd journal logs from a Proxmox host node for troubleshooting.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+last_lines - Number of log lines to retrieve (default: 100)"""
+
+GET_NODE_SERVICES_DESC = """List systemd services and their active running status on a Proxmox host node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')"""
+
+RESTART_NODE_SERVICE_DESC = """Restart a specific systemd service on a Proxmox host node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+service* - Service name (e.g. 'pve-cluster', 'pvedaemon', 'pveproxy')"""
+
+GET_NODE_NETWORK_DESC = """Get network interfaces configuration (bridges, bonds, IPs) for a Proxmox node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')"""
+
+GET_NODE_TASKS_DESC = """Get history of active and recent tasks/operations executed on a Proxmox host node.
+
+Parameters:
+node* - Proxmox node name (e.g. 'proxmox1')
+limit - Maximum task entries to retrieve (default: 50)"""
+
 # VM tool descriptions
 PREFLIGHT_VM_MIGRATION_DESC = """Read-only QEMU offline migration assessment using native Proxmox migration preconditions plus VM inventory, storage capacity, bridges and HA checks. Missing evidence blocks readiness. Requires VM.Migrate permission even for the native read. Backup restorability, workload drain and CPU compatibility need external verification. Does not move or stop a VM or reserve capacity."""
 MIGRATE_VM_DESC = """High-risk OFFLINE QEMU migration with local disks after read-only preflight and explicit confirmations of backup, workload drain, CPU compatibility and migration. The VM must already be stopped. Returns a submitted UPID/job ID, never completion. Never automatically retry uncertain submissions."""

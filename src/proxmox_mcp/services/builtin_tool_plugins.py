@@ -75,6 +75,18 @@ from proxmox_mcp.tools.definitions import (
     UPDATE_CONTAINER_SSH_KEYS_DESC,
     UPDATE_VM_CONFIG_DESC,
 )
+from ..tools.definitions import (
+    GET_APT_UPDATES_DESC,
+    REFRESH_APT_REPOSITORIES_DESC,
+    UPGRADE_APT_PACKAGES_DESC,
+    GET_NODE_DISKS_DESC,
+    GET_SMART_STATUS_DESC,
+    GET_NODE_JOURNAL_DESC,
+    GET_NODE_SERVICES_DESC,
+    RESTART_NODE_SERVICE_DESC,
+    GET_NODE_NETWORK_DESC,
+    GET_NODE_TASKS_DESC,
+)
 from proxmox_mcp.security.access import client_principal, permitted_targets
 from proxmox_mcp.tools.base import ProxmoxTool
 from .tool_wrappers import RegistryPluginBase as RegistryPluginBase, _READ_ONLY_TOOLS as _READ_ONLY_TOOLS, _log_safe as _log_safe
@@ -155,6 +167,100 @@ class CoreToolsPlugin(RegistryPluginBase):
         ) -> Any:
             return self._wrap_sync(server, "get_node_diagnostics", lambda ts: ts.node_tools.get_node_diagnostics)(
                 node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_APT_UPDATES_DESC)
+        def get_apt_updates(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_apt_updates", lambda ts: ts.node_tools.get_apt_updates)(
+                node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=REFRESH_APT_REPOSITORIES_DESC)
+        def refresh_apt_repositories(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "refresh_apt_repositories", lambda ts: ts.node_tools.refresh_apt_repositories)(
+                node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=UPGRADE_APT_PACKAGES_DESC)
+        def upgrade_apt_packages(
+            node: Annotated[str, Field(description="Name/ID of node to upgrade (e.g. 'proxmox1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "upgrade_apt_packages", lambda ts: ts.node_tools.upgrade_apt_packages)(
+                node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_NODE_DISKS_DESC)
+        def get_node_disks(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_disks", lambda ts: ts.node_tools.get_node_disks)(
+                node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_SMART_STATUS_DESC)
+        def get_smart_status(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            disk: Annotated[str, Field(description="Disk device identifier (e.g. '/dev/sda', 'nvme0n1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_smart_status", lambda ts: ts.node_tools.get_smart_status)(
+                node=node, disk=disk, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_NODE_JOURNAL_DESC)
+        def get_node_journal(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            last_lines: Annotated[int, Field(description="Number of log lines (default: 100)", ge=1, le=1000, default=100)] = 100,
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_journal", lambda ts: ts.node_tools.get_node_journal)(
+                node=node, last_lines=last_lines, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_NODE_SERVICES_DESC)
+        def get_node_services(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_services", lambda ts: ts.node_tools.get_node_services)(
+                node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=RESTART_NODE_SERVICE_DESC)
+        def restart_node_service(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            service: Annotated[str, Field(description="Service name (e.g. 'pve-cluster', 'pveproxy')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "restart_node_service", lambda ts: ts.node_tools.restart_node_service)(
+                node=node, service=service, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_NODE_NETWORK_DESC)
+        def get_node_network(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_network", lambda ts: ts.node_tools.get_node_network)(
+                node=node, target=target,
+            )
+
+        @server.tool_registry.tool(description=GET_NODE_TASKS_DESC)
+        def get_node_tasks(
+            node: Annotated[str, Field(description="Name/ID of node to query (e.g. 'proxmox1')")],
+            limit: Annotated[int, Field(description="Maximum task entries (default: 50)", ge=1, le=500, default=50)] = 50,
+            target: Annotated[Optional[str], Field(description="Configured target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "get_node_tasks", lambda ts: ts.node_tools.get_node_tasks)(
+                node=node, limit=limit, target=target,
             )
 
         @server.tool_registry.tool(description=GET_STORAGE_DESC)

@@ -1,6 +1,7 @@
 """ISO and template management tools for Proxmox MCP."""
 from typing import List, Dict, Optional, Any
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlsplit
 from mcp.types import TextContent as Content
 from proxmox_mcp.tools.base import ProxmoxTool, InventoryList, completeness_content, _log_safe
@@ -58,13 +59,19 @@ class ISOTools(ProxmoxTool):
         except Exception as e:
             self._handle_error("list nodes", e)
 
+        online_nodes = []
         for n in nodes:
             node_name = _get(n, "node")
             if not node_name:
                 continue
             if node and node_name != node:
                 continue
+            if _get(n, "status") != "offline":
+                online_nodes.append(node_name)
 
+        def scan_node(node_name: str) -> tuple[List[Dict[str, Any]], List[str]]:
+            node_results: List[Dict[str, Any]] = []
+            node_warnings: List[str] = []
             try:
                 storages = _as_list(self.proxmox.nodes(node_name).storage.get())
             except Exception as node_error:
@@ -73,8 +80,9 @@ class ISOTools(ProxmoxTool):
                     node_name,
                     node_error,
                 )
-                results.warnings.append(_log_safe(node_name) + ": " + _log_safe(node_error))
-                continue
+                node_warnings.append(_log_safe(node_name) + ": " + _log_safe(node_error))
+                return node_results, node_warnings
+
             for s in storages:
                 storage_name = _get(s, "storage")
                 if not storage_name:
@@ -96,9 +104,19 @@ class ISOTools(ProxmoxTool):
                     for item in content:
                         item["_node"] = node_name
                         item["_storage"] = storage_name
-                        results.append(item)
+                        node_results.append(item)
                 except Exception as error:
-                    results.warnings.append(_log_safe(storage_name) + ": " + _log_safe(error))
+                    node_warnings.append(_log_safe(storage_name) + ": " + _log_safe(error))
+
+            return node_results, node_warnings
+
+        if online_nodes:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(scan_node, n_name) for n_name in online_nodes]
+                for future in as_completed(futures):
+                    n_res, n_warn = future.result()
+                    results.extend(n_res)
+                    results.warnings.extend(n_warn)
 
         if not results and results.warnings:
             raise RuntimeError("Storage content inventory is unavailable: " + "; ".join(results.warnings))

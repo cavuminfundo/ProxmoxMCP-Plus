@@ -1,6 +1,7 @@
 """Backup and restore tools for Proxmox MCP."""
 from typing import List, Dict, Optional, Any
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from mcp.types import TextContent as Content
 from proxmox_mcp.tools.base import ProxmoxTool, completeness_content
@@ -73,6 +74,7 @@ class BackupTools(ProxmoxTool):
             except Exception as e:
                 self._handle_error("list nodes", e)
 
+            online_nodes = []
             for n in nodes:
                 node_name = _get(n, "node")
                 if not node_name:
@@ -82,12 +84,17 @@ class BackupTools(ProxmoxTool):
                 if _get(n, "status") == "offline":
                     offline_warnings.append(f"Unable to list storage on node {node_name} (offline)")
                     continue
+                online_nodes.append(node_name)
 
+            def scan_node(node_name: str) -> tuple[List[Dict[str, Any]], List[str]]:
+                node_results: List[Dict[str, Any]] = []
+                node_failures: List[str] = []
                 try:
                     storages = _as_list(self.proxmox.nodes(node_name).storage.get())
                 except Exception:
-                    failures.append(f"Unable to list storage on node {node_name}")
-                    continue
+                    node_failures.append(f"Unable to list storage on node {node_name}")
+                    return node_results, node_failures
+
                 for s in storages:
                     storage_name = _get(s, "storage")
                     if not storage_name:
@@ -111,10 +118,19 @@ class BackupTools(ProxmoxTool):
                         for item in content:
                             item["_node"] = node_name
                             item["_storage"] = storage_name
-                            results.append(item)
+                            node_results.append(item)
                     except Exception:
-                        failures.append(f"Unable to query backups in {storage_name} on node {node_name}")
+                        node_failures.append(f"Unable to query backups in {storage_name} on node {node_name}")
                         continue
+                return node_results, node_failures
+
+            if online_nodes:
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = [executor.submit(scan_node, n_name) for n_name in online_nodes]
+                    for future in as_completed(futures):
+                        n_res, n_fail = future.result()
+                        results.extend(n_res)
+                        failures.extend(n_fail)
 
             if not results:
                 if failures:

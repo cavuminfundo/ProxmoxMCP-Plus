@@ -18,6 +18,7 @@ detailed VM information might be temporarily unavailable.
 from proxmox_mcp.tools.storage_selection import select_storage
 from proxmox_mcp.tools.guest_config import bridge_name, parse_device, vm_media
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import math
 from decimal import Decimal
@@ -385,30 +386,26 @@ class VMTools(ProxmoxTool):
 
         result = []
         warnings = []
-        try:
-            for node in nodes:
-                node_name = node.get("node") if isinstance(node, dict) else None
-                if not node_name:
-                    self.logger.warning(
-                        "Skipping unexpected node entry while gathering VM list: %s",
-                        node,
-                    )
-                    continue
-                try:
-                    vms = self.proxmox.nodes(node_name).qemu.get()
-                except Exception as node_error:
-                    self.logger.warning(
-                        "Unable to list VMs on node %s: %s", _log_safe(node_name), _log_safe(node_error)
-                    )
-                    warnings.append(_log_safe(node_name) + ": " + _log_safe(node_error))
-                    continue
+        nodes_to_query = []
+        for node in nodes:
+            node_name = node.get("node") if isinstance(node, dict) else None
+            if not node_name:
+                self.logger.warning(
+                    "Skipping unexpected node entry while gathering VM list: %s",
+                    node,
+                )
+                continue
+            nodes_to_query.append(node_name)
 
+        def fetch_node(node_name: str) -> tuple[str, list[dict], Optional[str]]:
+            try:
+                vms = self.proxmox.nodes(node_name).qemu.get()
+                node_vms = []
                 for vm in vms:
                     vmid = vm["vmid"]
-                    # Get VM config for CPU cores
                     try:
                         config = self.proxmox.nodes(node_name).qemu(vmid).config.get()
-                        result.append({
+                        node_vms.append({
                             "vmid": vmid,
                             "name": vm["name"],
                             "status": vm["status"],
@@ -416,12 +413,11 @@ class VMTools(ProxmoxTool):
                             "cpus": config.get("cores", "N/A"),
                             "memory": {
                                 "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
+                                "total": vm.get("maxmem", 0),
+                            },
                         })
                     except Exception:
-                        # Fallback if can't get config
-                        result.append({
+                        node_vms.append({
                             "vmid": vmid,
                             "name": vm["name"],
                             "status": vm["status"],
@@ -429,11 +425,24 @@ class VMTools(ProxmoxTool):
                             "cpus": "N/A",
                             "memory": {
                                 "used": vm.get("mem", 0),
-                                "total": vm.get("maxmem", 0)
-                            }
+                                "total": vm.get("maxmem", 0),
+                            },
                         })
-        except Exception as e:
-            self._handle_error("get VMs", e)
+                return node_name, node_vms, None
+            except Exception as node_error:
+                self.logger.warning(
+                    "Unable to list VMs on node %s: %s", _log_safe(node_name), _log_safe(node_error)
+                )
+                return node_name, [], _log_safe(node_name) + ": " + _log_safe(node_error)
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(fetch_node, name): name for name in nodes_to_query}
+            for future in as_completed(futures):
+                _, node_vms, warning = future.result()
+                if warning:
+                    warnings.append(warning)
+                else:
+                    result.extend(node_vms)
 
         if not result and warnings:
             raise RuntimeError("VM inventory is unavailable: " + "; ".join(warnings))
