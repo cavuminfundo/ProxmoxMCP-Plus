@@ -60,6 +60,8 @@ from proxmox_mcp.tools.definitions import (
     MIGRATE_VM_DESC,
     PREFLIGHT_VM_MIGRATION_DESC,
     RESET_VM_DESC,
+    RESIZE_CONTAINER_DISK_DESC,
+    RESIZE_VM_DISK_DESC,
     RESTART_CONTAINER_DESC,
     RESTORE_BACKUP_DESC,
     RETRY_JOB_DESC,
@@ -486,6 +488,24 @@ class VMToolsPlugin(RegistryPluginBase):
                 target=target,
             )
 
+        @server.tool_registry.tool(description=RESIZE_VM_DISK_DESC)
+        def resize_vm_disk(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve')")],
+            vmid: Annotated[str, Field(description="VM ID number (e.g. '100')")],
+            disk: Annotated[str, Field(description="Disk identifier to resize (e.g. 'scsi0', 'virtio0', 'sata0', 'ide0')")],
+            size: Annotated[str, Field(description="New size or size increment (e.g. '+10G', '50G')")],
+            digest: Annotated[Optional[str], Field(description="Optional configuration digest", default=None)] = None,
+            target: Annotated[Optional[str], Field(description="Configured target name; required when multiple targets exist", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "resize_vm_disk", lambda ts: ts.vm_tools.resize_vm_disk)(
+                node=node,
+                vmid=vmid,
+                disk=disk,
+                size=size,
+                digest=digest,
+                target=target,
+            )
+
         @server.tool_registry.tool(description=GET_VM_IP_ADDRESSES_DESC)
         def get_vm_ip_addresses(
             node: Annotated[str, Field(description="Host node name (e.g. 'pve')")],
@@ -717,6 +737,24 @@ class ContainerToolsPlugin(RegistryPluginBase):
                 disk_gb=disk_gb,
                 disk=disk,
                 format_style=format_style,
+                target=target,
+            )
+
+        @server.tool_registry.tool(description=RESIZE_CONTAINER_DISK_DESC)
+        def resize_container_disk(
+            node: Annotated[str, Field(description="Host node name (e.g. 'pve')")],
+            vmid: Annotated[str, Field(description="Container ID number (e.g. '100')")],
+            size: Annotated[str, Field(description="New size or size increment (e.g. '+10G', '20G')")],
+            disk: Annotated[str, Field(description="Disk identifier to resize (default: 'rootfs')", default="rootfs")] = "rootfs",
+            digest: Annotated[Optional[str], Field(description="Optional configuration digest", default=None)] = None,
+            target: Annotated[Optional[str], Field(description="Configured target name; required when multiple targets exist", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "resize_container_disk", lambda ts: ts.container_tools.resize_container_disk)(
+                node=node,
+                vmid=vmid,
+                size=size,
+                disk=disk,
+                digest=digest,
                 target=target,
             )
 

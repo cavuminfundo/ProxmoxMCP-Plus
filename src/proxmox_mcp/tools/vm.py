@@ -294,6 +294,57 @@ class VMTools(ProxmoxTool):
             notes.append("sizing changes on a running VM stay pending until it is restarted")
         return self._json_fmt({"vmid": vmid, "node": node, "applied": applied, "notes": notes})
 
+    def resize_vm_disk(
+        self,
+        node: str,
+        vmid: str,
+        disk: str,
+        size: str,
+        digest: Optional[str] = None,
+    ) -> List[Content]:
+        """Resize / extend a virtual machine disk.
+
+        Parameters:
+            node: Host node name.
+            vmid: VM ID number as a string.
+            disk: Disk identifier to resize (e.g. 'scsi0', 'virtio0', 'sata0', 'ide0').
+            size: New size or size increment (e.g. '+10G', '50G').
+            digest: Optional configuration digest.
+        """
+        _vm_reference(node, vmid)
+
+        if not isinstance(disk, str) or not re.fullmatch(r"^(scsi|virtio|sata|ide)[0-9]+$", disk):
+            raise ValueError(f"Invalid VM disk identifier: '{disk}'. Must match (scsi|virtio|sata|ide)<number>")
+
+        if not isinstance(size, str):
+            raise ValueError("Size must be a string")
+        if size.startswith("-"):
+            raise ValueError(f"Disk shrinking is not supported: size cannot be negative ('{size}')")
+        if not re.fullmatch(r"^\+?[0-9]+(\.[0-9]+)?[KMGT]?$", size):
+            raise ValueError(f"Invalid size format: '{size}'. Must match ^\\+?[0-9]+(\\.[0-9]+)?[KMGT]?$")
+
+        params: Dict[str, Any] = {"disk": disk, "size": size}
+        if digest is not None:
+            params["digest"] = digest
+
+        try:
+            task_upid = self.proxmox.nodes(node).qemu(vmid).resize.put(**params)
+            job = self._register_background_job(
+                tool_name="resize_vm_disk",
+                summary=f"Resize VM {vmid} disk {disk} by {size} on {node}",
+                node=node,
+                upid=task_upid,
+                metadata={"vmid": str(vmid), "disk": disk, "size": size},
+                retry_spec={"kind": "vm.resize", "params": {"node": node, "vmid": str(vmid), "disk": disk, "size": size}},
+                retry_factory=lambda: self.proxmox.nodes(node).qemu(vmid).resize.put(**params),
+                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).delete(),
+            )
+            return [Content(type="text", text=f"Disk resize initiated.\nTask ID: {task_upid}\nJob ID: {job['job_id'] if job else 'n/a'}")]
+        except Exception as e:
+            if "does not exist" in str(e).lower() or "not found" in str(e).lower():
+                raise ValueError(f"VM {vmid} not found on node {node}") from e
+            return self._err("resize_vm_disk", e)
+
     def get_vm_ip_addresses(self, node: str, vmid: str) -> List[Content]:
         """Return the guest's interfaces and addresses via the QEMU guest agent.
 

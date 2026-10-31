@@ -183,6 +183,21 @@ running VM stay pending until it restarts.
 Example:
 update_vm_config node='pve' vmid='105' memory=4096 ciuser='hola' sshkeys='ssh-ed25519 AAAA... ci@host'"""
 
+RESIZE_VM_DISK_DESC = """Resize / extend a virtual machine disk.
+
+Extends the size of a VM disk (e.g. scsi0, virtio0, sata0, ide0). Disk shrinking
+is not supported by Proxmox and will be rejected.
+
+Parameters:
+node*   - Host node name (e.g. 'pve')
+vmid*   - VM ID number (e.g. '100')
+disk*   - Disk identifier to resize (e.g. 'scsi0', 'virtio0', 'sata0', 'ide0')
+size*   - New size or size increment (e.g. '+10G', '50G'). Negative sizes are rejected.
+digest  - Optional configuration digest for optimistic concurrency control
+
+Returns task UPID and background job ID.
+"""
+
 GET_VM_IP_ADDRESSES_DESC = """Get a running VM's network interfaces and IP addresses via the QEMU guest agent.
 
 Uses GET /nodes/{node}/qemu/{vmid}/agent/network-get-interfaces. The VM must be
@@ -359,6 +374,21 @@ memory: New memory limit in MiB (optional)
 swap: New swap limit in MiB (optional)
 disk_gb: Additional disk size in GiB to add (optional)
 disk: Disk identifier to resize (default 'rootfs')
+"""
+
+RESIZE_CONTAINER_DISK_DESC = """Resize / extend an LXC container disk.
+
+Extends the size of a container disk or mount point (e.g. rootfs, mp0). Disk shrinking
+is not supported by Proxmox and will be rejected.
+
+Parameters:
+node*   - Host node name (e.g. 'pve')
+vmid*   - Container ID number (e.g. '100')
+size*   - New size or size increment (e.g. '+10G', '20G'). Negative sizes are rejected.
+disk    - Disk/mountpoint identifier (default: 'rootfs', e.g. 'rootfs', 'mp0')
+digest  - Optional configuration digest for optimistic concurrency control
+
+Returns task UPID and background job ID.
 """
 
 CREATE_CONTAINER_DESC = """Create a new LXC container from an OS template (not an ISO).

@@ -108,3 +108,60 @@ def test_high_risk_operation_falls_back_to_command_token():
 
     assert gate.evaluate_operation("delete_vm", approval_token="cmd-token").allowed is True
     assert gate.evaluate_operation("delete_vm", approval_token="other").allowed is False
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "lsblk",
+        "lsblk -f",
+        "df",
+        "df -h",
+        "growpart /dev/sda 1",
+        "resize2fs /dev/sda1",
+        "xfs_growfs /",
+        "systemctl status",
+        "ip a",
+        "ip route",
+        "ss -tulpn",
+        "findmnt",
+        "parted -l",
+    ],
+)
+def test_default_allowlist_permits_diagnostic_and_disk_commands(command):
+    gate = _gate(mode="allowlist")
+    decision = gate.evaluate(command)
+    assert decision.allowed is True
+    assert decision.code == "CMD_POLICY_ALLOW"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "rm -rf /",
+        "lsblk; rm -rf /",
+        "df -h && rm -rf /",
+        ":(){:|:&};:",
+        "rm -rf /etc",
+    ],
+)
+def test_default_policy_blocks_destructive_commands_and_chained_exploits(command):
+    gate = _gate(mode="allowlist")
+    decision = gate.evaluate(command)
+    assert decision.allowed is False
+    assert decision.code == "CMD_POLICY_DENY_PATTERN"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "whoami",
+        "curl https://example.com",
+        "cat /etc/shadow",
+    ],
+)
+def test_default_policy_blocks_unlisted_commands(command):
+    gate = _gate(mode="allowlist")
+    decision = gate.evaluate(command)
+    assert decision.allowed is False
+    assert decision.code == "CMD_POLICY_NOT_ALLOWLISTED"

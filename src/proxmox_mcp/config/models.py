@@ -131,7 +131,20 @@ class SecurityConfig(BaseModel):
 class CommandPolicyConfig(BaseModel):
     """Policy controls for execute_* command tools."""
     mode: Literal["deny_all", "allowlist", "audit_only"] = "deny_all"
-    allow_patterns: List[str] = Field(default_factory=list)
+    allow_patterns: List[str] = Field(
+        default_factory=lambda: [
+            r"^lsblk(\s|$)",
+            r"^df(\s|$)",
+            r"^growpart(\s|$)",
+            r"^resize2fs(\s|$)",
+            r"^xfs_growfs(\s|$)",
+            r"^systemctl(\s|$)",
+            r"^ip(\s|$)",
+            r"^ss(\s|$)",
+            r"^findmnt(\s|$)",
+            r"^parted(\s|$)",
+        ]
+    )
     deny_patterns: List[str] = Field(
         default_factory=lambda: [r"(^|\s)rm\s+-rf(\s|$)", r":\(\)\{:\|:\&\};:"]
     )

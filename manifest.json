@@ -2,7 +2,7 @@
     "manifest_version": "0.4",
     "name": "proxmox-mcp-plus",
     "display_name": "ProxmoxMCP-Plus",
-    "version": "0.6.6",
+    "version": "0.6.7",
     "description": "An enhanced MCP server for managing Proxmox virtualization platforms.",
     "long_description": "ProxmoxMCP-Plus is an enhanced Model Context Protocol (MCP) server that provides comprehensive tools for managing Proxmox virtualization environments, including VM lifecycle, container management, snapshot operations, and backup/restore capabilities.",
     "author": {
@@ -187,6 +187,10 @@
             "description": "Update sizing (memory, cores, sockets, name, tags) and cloud-init settings (sshkeys, ciuser, ipconfig0, nameserver, searchdomain) of an existing QEMU virtual machine"
         },
         {
+            "name": "resize_vm_disk",
+            "description": "Resize or extend a virtual machine disk"
+        },
+        {
             "name": "get_vm_ip_addresses",
             "description": "Get a running VM's network interfaces and IP addresses via the QEMU guest agent"
         },
@@ -285,6 +289,10 @@
         {
             "name": "update_container_resources",
             "description": "Update CPU/Memory/Disk for an LXC container"
+        },
+        {
+            "name": "resize_container_disk",
+            "description": "Resize or extend an LXC container disk"
         },
         {
             "name": "create_container",

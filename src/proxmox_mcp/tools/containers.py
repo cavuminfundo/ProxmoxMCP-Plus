@@ -1,6 +1,7 @@
 from proxmox_mcp.tools.storage_selection import select_storage
 from typing import List, Dict, Optional, Tuple, Any, Union, Callable
 from proxmox_mcp.tools.guest_config import container_network
+from proxmox_mcp.security.resources import validate_segment, validate_guest_id
 import re
 import json
 import math
@@ -1177,6 +1178,57 @@ class ContainerTools(ProxmoxTool):
         except Exception as e:
             return self._err("Failed to update container(s)", e)
 
+    def resize_container_disk(
+        self,
+        node: str,
+        vmid: str,
+        size: str,
+        disk: str = "rootfs",
+        digest: Optional[str] = None,
+    ) -> List[Content]:
+        """Resize / extend an LXC container disk.
+
+        Parameters:
+            node: Host node name.
+            vmid: Container ID number as a string.
+            size: New size or size increment (e.g. '+10G', '20G').
+            disk: Disk/mountpoint identifier (default: 'rootfs').
+            digest: Optional configuration digest.
+        """
+        validate_segment(node)
+        validate_guest_id(vmid)
+
+        if not isinstance(disk, str) or not re.fullmatch(r"^(rootfs|mp[0-9]+)$", disk):
+            raise ValueError(f"Invalid container disk identifier: '{disk}'. Must match rootfs or mp<number>")
+
+        if not isinstance(size, str):
+            raise ValueError("Size must be a string")
+        if size.startswith("-"):
+            raise ValueError(f"Disk shrinking is not supported: size cannot be negative ('{size}')")
+        if not re.fullmatch(r"^\+?[0-9]+(\.[0-9]+)?[KMGT]?$", size):
+            raise ValueError(f"Invalid size format: '{size}'. Must match ^\\+?[0-9]+(\\.[0-9]+)?[KMGT]?$")
+
+        params: Dict[str, Any] = {"disk": disk, "size": size}
+        if digest is not None:
+            params["digest"] = digest
+
+        try:
+            task_upid = self.proxmox.nodes(node).lxc(vmid).resize.put(**params)
+            job = self._register_background_job(
+                tool_name="resize_container_disk",
+                summary=f"Resize container {vmid} disk {disk} by {size} on {node}",
+                node=node,
+                upid=task_upid,
+                metadata={"vmid": str(vmid), "disk": disk, "size": size},
+                retry_spec={"kind": "ct.resize", "params": {"node": node, "vmid": str(vmid), "disk": disk, "size": size}},
+                retry_factory=lambda: self.proxmox.nodes(node).lxc(vmid).resize.put(**params),
+                cancel_factory=lambda upid: self.proxmox.nodes(node).tasks(upid).delete(),
+            )
+            return [Content(type="text", text=f"Disk resize initiated.\nTask ID: {task_upid}\nJob ID: {job['job_id'] if job else 'n/a'}")]
+        except Exception as e:
+            if "does not exist" in str(e).lower() or "not found" in str(e).lower():
+                raise ValueError(f"Container {vmid} not found on node {node}") from e
+            return self._err("resize_container_disk", e)
 
     def update_container_network(
         self, node: str, vmid: str, network_bridge: Optional[str] = None,
