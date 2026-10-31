@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 from proxmoxer.core import ResourceException
 
+from mcp.types import TextContent as Content
 from proxmox_mcp.tools.definitions import (
     RESIZE_CONTAINER_DISK_DESC,
     RESIZE_VM_DISK_DESC,
@@ -25,6 +26,14 @@ def test_resize_vm_disk_valid_sizes(size):
     res = tool.resize_vm_disk("pve", "100", "scsi0", size)
     assert "Disk resize initiated." in res[0].text
     api.nodes("pve").qemu("100").resize.put.assert_called_once_with(disk="scsi0", size=size)
+
+
+def test_resize_vm_disk_rejects_non_string_size():
+    api = Mock()
+    tool = VMTools(api)
+    with pytest.raises(ValueError, match="Size must be a string"):
+        tool.resize_vm_disk("pve", "100", "scsi0", 10)  # type: ignore[arg-type]
+    api.nodes.return_value.qemu.return_value.resize.put.assert_not_called()
 
 
 @pytest.mark.parametrize("size", ["-5G", "-10M", "-1", "-0.5G"])
@@ -72,6 +81,14 @@ def test_resize_container_disk_valid_sizes(size):
     res = tool.resize_container_disk("pve", "101", size)
     assert "Disk resize initiated." in res[0].text
     api.nodes("pve").lxc("101").resize.put.assert_called_once_with(disk="rootfs", size=size)
+
+
+def test_resize_container_disk_rejects_non_string_size():
+    api = Mock()
+    tool = ContainerTools(api)
+    with pytest.raises(ValueError, match="Size must be a string"):
+        tool.resize_container_disk("pve", "101", 10)  # type: ignore[arg-type]
+    api.nodes.return_value.lxc.return_value.resize.put.assert_not_called()
 
 
 @pytest.mark.parametrize("size", ["-5G", "-100M", "-1"])
@@ -247,6 +264,12 @@ def test_plugin_registration():
             return func
         return decorator
 
+    mock_vm_tools = Mock()
+    mock_vm_tools.resize_vm_disk.return_value = [Content(type="text", text="ok")]
+    mock_container_tools = Mock()
+    mock_container_tools.resize_container_disk.return_value = [Content(type="text", text="ok")]
+    mock_toolset = SimpleNamespace(vm_tools=mock_vm_tools, container_tools=mock_container_tools)
+
     default_target = SimpleNamespace(name="default", readonly=False, ssh=None)
     target_reg = SimpleNamespace(
         names=("default",),
@@ -255,6 +278,8 @@ def test_plugin_registration():
     server = SimpleNamespace(
         tool_registry=SimpleNamespace(tool=register),
         target_registry=target_reg,
+        target_tools=lambda name="default": mock_toolset,
+        proxmox_managers={"default": mock_toolset},
         target_command_policies={"default": SimpleNamespace(evaluate_operation=lambda *args, **kwargs: SimpleNamespace(code="OP_ALLOW", allowed=True))},
         config=SimpleNamespace(ssh=None),
         logger=Mock(),
@@ -264,7 +289,14 @@ def test_plugin_registration():
     VMToolsPlugin().register(server)
     assert "resize_vm_disk" in registered_tools
     assert registered_tools["resize_vm_disk"]["description"] == RESIZE_VM_DISK_DESC
+    res_vm = registered_tools["resize_vm_disk"]["func"](node="pve", vmid="100", disk="scsi0", size="+10G")
+    assert res_vm[0].text == "ok"
+    mock_vm_tools.resize_vm_disk.assert_called_once_with(node="pve", vmid="100", disk="scsi0", size="+10G", digest=None)
 
     ContainerToolsPlugin().register(server)
     assert "resize_container_disk" in registered_tools
     assert registered_tools["resize_container_disk"]["description"] == RESIZE_CONTAINER_DISK_DESC
+    res_ct = registered_tools["resize_container_disk"]["func"](node="pve", vmid="100", size="+10G")
+    assert res_ct[0].text == "ok"
+    mock_container_tools.resize_container_disk.assert_called_once_with(node="pve", vmid="100", size="+10G", disk="rootfs", digest=None)
+
