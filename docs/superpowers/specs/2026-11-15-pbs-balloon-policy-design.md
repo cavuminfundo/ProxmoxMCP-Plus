@@ -77,7 +77,7 @@ Tutti i tool PBS accettano `target: Optional[str] = None` e rispettano `target.r
 - **Nuovi `deny_patterns` di default** (`src/proxmox_mcp/config/models.py`):
   - `r"(^|\s)rm\s+-rf(\s|$)"`
   - `r":\(\)\{:\|:\&\};:"`
-  - `r"(^|\s)apt(-get)?\s+(remove|purge|autoremove|dpkg)(\s|$)"`
+  - `r"(^|\s)apt(-get)?\s+(remove|purge|autoremove|dpkg|upgrade)(\s|$)"` (per `AB-PVE-002`, su Proxmox è vietato `apt-get upgrade`; usare `dist-upgrade` / `full-upgrade`)
   - `r"(^|\s)zpool\s+(destroy|create|export|offline|detach|remove|labelclear|reguid|split)(\s|$)"`
   - `r"(^|\s)zpool\s+scrub\s+-s(\s|$)"`
   - `r"(^|\s)sysctl\s+(-w|--write|--system|-p)(\s|=|$)"`
@@ -96,7 +96,7 @@ Oltre ai 10 pattern esistenti (`lsblk`, `df`, `growpart`, `resize2fs`, `xfs_grow
 - `sysctl` (sola lettura):
   - `r"^sysctl(\s+(-[anN]|--all|--names|--values))*(\s+[A-Za-z0-9_./-]+)*$"`
 - `apt` / `apt-get` / `apt-cache`:
-  - `r"^apt(-get)?\s+(update|list|show|policy|upgrade|dist-upgrade|full-upgrade|check)(\s|$)"`
+  - `r"^apt(-get)?\s+(update|list|show|policy|dist-upgrade|full-upgrade|check)(\s|$)"`
   - `r"^apt-cache\s+(policy|show|search|madison|depends|rdepends)(\s|$)"`
 
 In `src/proxmox_mcp/config/loader.py` (riga ~166), quando `COMMAND_POLICY_ALLOW_PATTERNS` non è valorizzata nelle variabili d'ambiente, preservare i default di `CommandPolicyConfig` invece di sovrascriverli con `[]`.
