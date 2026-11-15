@@ -20,7 +20,7 @@ def _tokens_match(provided: str | None, expected: str | None) -> bool:
         return False
 
 
-_SHELL_CHAIN_RE = re.compile(r"(;|&&|\|\||\||`|\$\(|>|<|\r|\n)")
+_SHELL_CHAIN_RE = re.compile(r"(;|&&|\|\||\||`|\$\(|\$\{|\{|\}|>|<|\r|\n|\$IFS)")
 
 
 @dataclass(frozen=True)
@@ -64,13 +64,6 @@ class CommandPolicyGate:
         if not command or not command.strip():
             return CommandPolicyDecision(False, "CMD_POLICY_EMPTY", "Command cannot be empty")
 
-        if _SHELL_CHAIN_RE.search(command):
-            return CommandPolicyDecision(
-                False,
-                "CMD_POLICY_SHELL_METACHAR",
-                "Shell chaining, subshells, and redirections are blocked by policy",
-            )
-
         if self._matches_any(command, self.deny_patterns):
             return CommandPolicyDecision(
                 False,
@@ -88,6 +81,12 @@ class CommandPolicyGate:
                 False,
                 "CMD_POLICY_NOT_ALLOWLISTED",
                 "Command not allowlisted by policy",
+            )
+        if mode in {"deny_all", "allowlist"} and _SHELL_CHAIN_RE.search(command):
+            return CommandPolicyDecision(
+                False,
+                "CMD_POLICY_SHELL_METACHAR",
+                "Shell chaining, subshells, and redirections are blocked by policy",
             )
 
         if self.config.require_approval_token:

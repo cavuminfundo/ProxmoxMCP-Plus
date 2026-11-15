@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, List, Optional
 from mcp.types import TextContent as Content
+from proxmox_mcp.security.resources import validate_segment
 from proxmox_mcp.tools.base import ProxmoxTool
 
 
@@ -41,6 +42,8 @@ class PBSTools(ProxmoxTool):
         running_only: bool = False,
         store: Optional[str] = None,
     ) -> List[Content]:
+        if store is not None:
+            validate_segment(store)
         try:
             params: dict[str, Any] = {"limit": limit}
             if running_only:
@@ -58,6 +61,7 @@ class PBSTools(ProxmoxTool):
             self._handle_error("get tasks", e)
 
     def get_task_log(self, upid: str, start: int = 0, limit: int = 500) -> List[Content]:
+        validate_segment(upid)
         try:
             res = self.proxmox.nodes("localhost").tasks(upid).log.get(start=start, limit=limit)
             return self._json_fmt(res)
@@ -72,6 +76,8 @@ class PBSTools(ProxmoxTool):
             self._handle_error("get disks", e)
 
     def get_zfs(self, pool: Optional[str] = None) -> List[Content]:
+        if pool is not None:
+            validate_segment(pool)
         try:
             if pool:
                 res = self.proxmox.nodes("localhost").disks.zfs(pool).get()
@@ -89,6 +95,7 @@ class PBSTools(ProxmoxTool):
         approval_token: Optional[str] = None,
     ) -> List[Content]:
         _ = approval_token
+        validate_segment(store)
         try:
             params: dict[str, Any] = {"ignore-verified": ignore_verified}
             if outdated_after is not None:
@@ -107,6 +114,7 @@ class PBSTools(ProxmoxTool):
 
     def scrub_zfs(self, pool: str, approval_token: Optional[str] = None) -> List[Content]:
         _ = approval_token
+        validate_segment(pool)
         try:
             raw = None
             try:

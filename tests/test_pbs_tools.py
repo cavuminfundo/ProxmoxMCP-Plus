@@ -203,3 +203,22 @@ def test_pbs_tools_readonly_enforcement():
     server_ro.target_toolsets["pbs_ro"].get_ds = MagicMock(return_value=[])
     wrapped_get_ds = plugin._wrap_sync(server_ro, "pbs_get_datastores", lambda ts: ts.get_ds, expected_service="PBS")
     assert wrapped_get_ds() == []
+
+
+def test_pbs_tools_rejects_path_traversal_segments():
+    mock_api = MagicMock()
+    tools = PBSTools(mock_api)
+    bad_inputs = ["../etc", "../../api2/json/access/users", "store/sub", "pool?x=1", "pool#frag"]
+    for bad in bad_inputs:
+        with pytest.raises(ValueError, match="Invalid resource path segment"):
+            tools.get_tasks(store=bad)
+        with pytest.raises(ValueError, match="Invalid resource path segment"):
+            tools.get_task_log(upid=bad)
+        with pytest.raises(ValueError, match="Invalid resource path segment"):
+            tools.get_zfs(pool=bad)
+        with pytest.raises(ValueError, match="Invalid resource path segment"):
+            tools.verify_datastore(store=bad)
+        with pytest.raises(ValueError, match="Invalid resource path segment"):
+            tools.scrub_zfs(pool=bad)
+    mock_api.admin.datastore.assert_not_called()
+    mock_api.nodes.assert_not_called()

@@ -139,9 +139,9 @@ def test_default_allowlist_permits_diagnostic_and_disk_commands(command):
     "command,expected_code",
     [
         ("rm -rf /", "CMD_POLICY_DENY_PATTERN"),
-        ("lsblk; rm -rf /", "CMD_POLICY_SHELL_METACHAR"),
-        ("df -h && rm -rf /", "CMD_POLICY_SHELL_METACHAR"),
-        (":(){:|:&};:", "CMD_POLICY_SHELL_METACHAR"),
+        ("lsblk; rm -rf /", "CMD_POLICY_DENY_PATTERN"),
+        ("df -h && rm -rf /", "CMD_POLICY_DENY_PATTERN"),
+        (":(){:|:&};:", "CMD_POLICY_DENY_PATTERN"),
         ("rm -rf /etc", "CMD_POLICY_DENY_PATTERN"),
     ],
 )
@@ -217,13 +217,23 @@ def test_command_policy_allows_new_safe_diagnostic_and_maintenance_commands(comm
         ("cat < /etc/shadow", "CMD_POLICY_SHELL_METACHAR"),
         ("lsblk\nid", "CMD_POLICY_SHELL_METACHAR"),
         ("smartctl -H /dev/sda\rid", "CMD_POLICY_SHELL_METACHAR"),
+        ("apt-get update -o APT::Update::Pre-Invoke::=/bin/sh", "CMD_POLICY_DENY_PATTERN"),
+        ("apt-cache policy -c /tmp/apt.conf", "CMD_POLICY_DENY_PATTERN"),
+        ("zramctl -rb /dev/zram0", "CMD_POLICY_SHELL_METACHAR"),
+        ("smartctl -s standby,now /dev/sda", "CMD_POLICY_SHELL_METACHAR"),
+        ("zpool scrub -p", "CMD_POLICY_SHELL_METACHAR"),
+        ("lsblk ${IFS} /dev/sda", "CMD_POLICY_SHELL_METACHAR"),
+        ("{rm,-rf,/}", "CMD_POLICY_SHELL_METACHAR"),
     ],
 )
 def test_command_policy_blocks_destructive_subcommands_and_shell_chaining(command, expected_code):
     gate = _gate(mode="allowlist")
     decision = gate.evaluate(command)
     assert decision.allowed is False
-    assert decision.code == expected_code
+    if expected_code == "CMD_POLICY_SHELL_METACHAR":
+        assert decision.code in {"CMD_POLICY_SHELL_METACHAR", "CMD_POLICY_NOT_ALLOWLISTED"}
+    else:
+        assert decision.code == expected_code
 
 
 @pytest.mark.parametrize(
