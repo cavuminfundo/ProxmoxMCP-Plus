@@ -17,6 +17,7 @@ from proxmox_mcp.services.builtin_tool_plugins import (
     ImageToolsPlugin,
     JobsToolsPlugin,
     LogToolsPlugin,
+    PBSToolsPlugin,
     SnapshotToolsPlugin,
     VMToolsPlugin,
 )
@@ -67,6 +68,7 @@ def test_manifest_declares_all_registered_tools():
         ImageToolsPlugin(),
         BackupToolsPlugin(),
         LogToolsPlugin(),
+        PBSToolsPlugin(),
     ):
         plugin.register(fake_server)
 
