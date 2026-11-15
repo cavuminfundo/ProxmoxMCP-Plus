@@ -143,10 +143,25 @@ class CommandPolicyConfig(BaseModel):
             r"^ss(\s|$)",
             r"^findmnt(\s|$)",
             r"^parted(\s|$)",
+            r"^zpool\s+(status|list|iostat|get)(\s|$)",
+            r"^zpool\s+scrub\s+[A-Za-z0-9_.-]+$",
+            r"^smartctl\s+(-[aHiIl]|--scan|--info|--health|--all|--json|-j)(\s|$)",
+            r"^zramctl(\s+(--output|--bytes|--raw|--noheadings|--json|-[onbrj])([=\s][A-Za-z0-9_,.:/-]+)?)*$",
+            r"^sysctl(\s+(-[anN]|--all|--names|--values))*(\s+[A-Za-z0-9_./-]+)*$",
+            r"^apt(-get)?\s+(update|list|show|policy|dist-upgrade|full-upgrade|check)(\s|$)",
+            r"^apt-cache\s+(policy|show|search|madison|depends|rdepends)(\s|$)",
         ]
     )
     deny_patterns: List[str] = Field(
-        default_factory=lambda: [r"(^|\s)rm\s+-rf(\s|$)", r":\(\)\{:\|:\&\};:"]
+        default_factory=lambda: [
+            r"(^|\s)rm\s+-rf(\s|$)",
+            r":\(\)\{:\|:\&\};:",
+            r"(^|\s)apt(-get)?\s+(remove|purge|autoremove|dpkg|upgrade)(\s|$)",
+            r"(^|\s)zpool\s+(destroy|create|export|offline|detach|remove|labelclear|reguid|split)(\s|$)",
+            r"(^|\s)zpool\s+scrub\s+-s(\s|$)",
+            r"(^|\s)sysctl\s+(-w|--write|--system|-p)(\s|=|$)",
+            r"(^|\s)zramctl\s+.*(--reset|--size|-r|-s)(\s|=|$)",
+        ]
     )
     require_approval_token: bool = False
     approval_token: Optional[str] = None
@@ -169,6 +184,8 @@ class CommandPolicyConfig(BaseModel):
             "import_cloud_image",
             "download_template",
             "execute_node_command",
+            "pbs_verify_datastore",
+            "pbs_scrub_zfs",
         ]
     )
     high_risk_require_approval_token: bool = False

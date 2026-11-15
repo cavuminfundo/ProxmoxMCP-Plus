@@ -163,13 +163,15 @@ def load_config(config_path: Optional[str] = None) -> Config:
         log_level_raw = os.getenv("LOG_LEVEL")
         command_policy = {
             'mode': os.getenv("COMMAND_POLICY_MODE", "deny_all"),
-            'allow_patterns': _parse_csv_env("COMMAND_POLICY_ALLOW_PATTERNS") or [],
             'require_approval_token': _bool_env("COMMAND_POLICY_REQUIRE_APPROVAL_TOKEN"),
             'approval_token': os.getenv("COMMAND_POLICY_APPROVAL_TOKEN"),
             'high_risk_mode': os.getenv("COMMAND_POLICY_HIGH_RISK_MODE", "audit_only"),
             'high_risk_require_approval_token': _bool_env("COMMAND_POLICY_HIGH_RISK_REQUIRE_APPROVAL_TOKEN"),
             'high_risk_approval_token': os.getenv("COMMAND_POLICY_HIGH_RISK_APPROVAL_TOKEN"),
         }
+        allow_patterns = _parse_csv_env("COMMAND_POLICY_ALLOW_PATTERNS")
+        if allow_patterns is not None:
+            command_policy["allow_patterns"] = allow_patterns
         deny_patterns = _parse_csv_env("COMMAND_POLICY_DENY_PATTERNS")
         if deny_patterns is not None:
             command_policy["deny_patterns"] = deny_patterns

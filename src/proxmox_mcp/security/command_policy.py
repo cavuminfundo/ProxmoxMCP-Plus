@@ -20,6 +20,9 @@ def _tokens_match(provided: str | None, expected: str | None) -> bool:
         return False
 
 
+_SHELL_CHAIN_RE = re.compile(r"(;|&&|\|\||\||`|\$\(|>|<|\r|\n)")
+
+
 @dataclass(frozen=True)
 class CommandPolicyDecision:
     allowed: bool
@@ -60,6 +63,13 @@ class CommandPolicyGate:
     ) -> CommandPolicyDecision:
         if not command or not command.strip():
             return CommandPolicyDecision(False, "CMD_POLICY_EMPTY", "Command cannot be empty")
+
+        if _SHELL_CHAIN_RE.search(command):
+            return CommandPolicyDecision(
+                False,
+                "CMD_POLICY_SHELL_METACHAR",
+                "Shell chaining, subshells, and redirections are blocked by policy",
+            )
 
         if self._matches_any(command, self.deny_patterns):
             return CommandPolicyDecision(
