@@ -102,3 +102,35 @@ def test_create_container_retains_dhcp_default_and_supports_static(static):
 def test_ipv6_zone_ids_cannot_inject_network_options(kwargs):
     with pytest.raises(ValueError, match="zone IDs"):
         container_network(**kwargs)
+
+
+def test_update_vm_config_accepts_balloon_and_memory_together():
+    proxmox = Mock()
+    tools = VMTools(proxmox)
+    result = tools.update_vm_config("pve1", "105", memory=4096, balloon=2048)
+    proxmox.nodes("pve1").qemu("105").config.put.assert_called_once_with(
+        memory=4096, balloon=2048
+    )
+    payload = json.loads(result[0].text)
+    assert payload["applied"] == {"memory": 4096, "balloon": 2048}
+
+
+def test_update_vm_config_accepts_balloon_zero_to_disable_ballooning():
+    proxmox = Mock()
+    tools = VMTools(proxmox)
+    result = tools.update_vm_config("pve1", "105", balloon=0)
+    proxmox.nodes("pve1").qemu("105").config.put.assert_called_once_with(balloon=0)
+    payload = json.loads(result[0].text)
+    assert payload["applied"] == {"balloon": 0}
+    assert "sizing changes on a running VM stay pending until it is restarted" in payload["notes"]
+
+
+def test_update_vm_config_rejects_negative_balloon_or_balloon_above_memory():
+    proxmox = Mock()
+    tools = VMTools(proxmox)
+    with pytest.raises(ValueError, match="balloon must be >= 0"):
+        tools.update_vm_config("pve1", "105", balloon=-1)
+    with pytest.raises(ValueError, match="balloon cannot exceed memory"):
+        tools.update_vm_config("pve1", "105", memory=2048, balloon=4096)
+    proxmox.nodes.assert_not_called()
+

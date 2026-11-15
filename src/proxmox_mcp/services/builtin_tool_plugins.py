@@ -469,6 +469,7 @@ class VMToolsPlugin(RegistryPluginBase):
             cdrom_device: Annotated[str, Field(description="CD-ROM device; refuses to overwrite disks or cloud-init")] = "ide3",
             boot_order: Annotated[Optional[str], Field(description="Boot devices separated by semicolons, e.g. ide3;scsi0")] = None,
             network_bridge: Annotated[Optional[str], Field(description="Change net0 bridge while preserving other NIC settings")] = None,
+            balloon: Annotated[Optional[int], Field(description="Minimum/target balloon RAM in MiB (0 disables ballooning, must be <= memory)", default=None, ge=0)] = None,
         ) -> Any:
             return self._wrap_sync(server, "update_vm_config", lambda ts: ts.vm_tools.update_vm_config, high_risk=True)(
                 node=node,
@@ -485,6 +486,7 @@ class VMToolsPlugin(RegistryPluginBase):
                 tags=tags,
                 approval_token=approval_token,
                 iso_volume=iso_volume, cdrom_device=cdrom_device, boot_order=boot_order, network_bridge=network_bridge,
+                balloon=balloon,
                 target=target,
             )
 

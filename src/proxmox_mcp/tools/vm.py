@@ -205,6 +205,7 @@ class VMTools(ProxmoxTool):
         cdrom_device: str = "ide3",
         boot_order: Optional[str] = None,
         network_bridge: Optional[str] = None,
+        balloon: Optional[int] = None,
     ) -> List[Content]:
         """Update sizing and cloud-init settings of an existing QEMU VM.
 
@@ -225,6 +226,12 @@ class VMTools(ProxmoxTool):
             if memory < 16:
                 raise ValueError("memory must be at least 16 MiB")
             payload["memory"] = int(memory)
+        if balloon is not None:
+            if balloon < 0:
+                raise ValueError("balloon must be >= 0 (0 disables ballooning)")
+            if memory is not None and balloon > memory:
+                raise ValueError("balloon cannot exceed memory")
+            payload["balloon"] = int(balloon)
         if cores is not None:
             if cores < 1:
                 raise ValueError("cores must be at least 1")
@@ -290,7 +297,7 @@ class VMTools(ProxmoxTool):
         notes = []
         if cloud_init_fields & payload.keys():
             notes.append("cloud-init settings are applied by the guest at its next boot")
-        if {"memory", "cores", "sockets"} & payload.keys():
+        if {"memory", "balloon", "cores", "sockets"} & payload.keys():
             notes.append("sizing changes on a running VM stay pending until it is restarted")
         return self._json_fmt({"vmid": vmid, "node": node, "applied": applied, "notes": notes})
 

@@ -163,6 +163,7 @@ Parameters:
 node*        - Host node name (e.g. 'pve')
 vmid*        - VM ID number (e.g. '105')
 memory       - RAM in MiB (e.g. 4096)
+balloon      - Minimum/target balloon RAM in MiB (0 disables ballooning, must be <= memory)
 cores        - CPU cores per socket
 sockets      - CPU sockets
 name         - New VM name (DNS label)
