@@ -265,3 +265,14 @@ def test_loader_preserves_default_command_policy_patterns(monkeypatch):
     assert len(cfg.command_policy.allow_patterns) > 10
     assert any("zpool" in p for p in cfg.command_policy.allow_patterns)
     assert "pbs_verify_datastore" in cfg.command_policy.high_risk_operations
+
+
+def test_loader_respects_custom_allow_patterns_env(monkeypatch):
+    from proxmox_mcp.config.loader import load_config
+    monkeypatch.setenv("COMMAND_POLICY_ALLOW_PATTERNS", "^uname$,^id$")
+    monkeypatch.setenv("PROXMOX_HOST", "127.0.0.1")
+    monkeypatch.setenv("PROXMOX_USER", "root@pam")
+    monkeypatch.setenv("PROXMOX_TOKEN_NAME", "tok")
+    monkeypatch.setenv("PROXMOX_TOKEN_VALUE", "val")
+    cfg = load_config()
+    assert cfg.command_policy.allow_patterns == ["^uname$", "^id$"]

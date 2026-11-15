@@ -222,3 +222,160 @@ def test_pbs_tools_rejects_path_traversal_segments():
             tools.scrub_zfs(pool=bad)
     mock_api.admin.datastore.assert_not_called()
     mock_api.nodes.assert_not_called()
+
+
+def test_pbs_tools_error_and_fallback_branches():
+    mock_api = MagicMock()
+    tools = PBSTools(mock_api)
+
+    # Non-list datastores + status error fallback
+    mock_api.admin.datastore.get.return_value = {"unexpected": True}
+    assert _extract_json(tools.get_datastores()) == {"unexpected": True}
+
+    mock_api.admin.datastore.get.return_value = [{"store": "ds1"}]
+    mock_api.admin.datastore.side_effect = lambda _name: MagicMock(
+        status=MagicMock(get=MagicMock(side_effect=RuntimeError("status fail")))
+    )
+    assert _extract_json(tools.get_datastores()) == [{"store": "ds1"}]
+
+    # API errors on all methods
+    mock_api.admin.datastore.get.side_effect = RuntimeError("ds err")
+    with pytest.raises(RuntimeError):
+        tools.get_datastores()
+
+    mock_api.nodes("localhost").tasks.get.side_effect = RuntimeError("tasks err")
+    with pytest.raises(RuntimeError):
+        tools.get_tasks()
+
+    mock_api.nodes("localhost").tasks("UPID:1").log.get.side_effect = RuntimeError("log err")
+    with pytest.raises(RuntimeError):
+        tools.get_task_log("UPID:1")
+
+    mock_api.nodes("localhost").disks.list.get.side_effect = RuntimeError("disks err")
+    with pytest.raises(RuntimeError):
+        tools.get_disks()
+
+    mock_api.nodes("localhost").disks.zfs.get.side_effect = RuntimeError("zfs err")
+    with pytest.raises(RuntimeError):
+        tools.get_zfs()
+
+    # verify_datastore with outdated_after and dict upid + error branch
+    mock_api.admin.datastore.side_effect = None
+    mock_api.admin.datastore("ds1").verify.post.return_value = {"data": {"upid": "UPID:v1"}}
+    res_v = _extract_json(tools.verify_datastore("ds1", outdated_after=7))
+    assert res_v["upid"] == "UPID:v1"
+    mock_api.admin.datastore("ds1").verify.post.side_effect = RuntimeError("verify err")
+    with pytest.raises(RuntimeError):
+        tools.verify_datastore("ds1")
+
+    # scrub_zfs: AttributeError fallback to post(), 405 fallback, and non-405 error
+    scrub_ep = mock_api.nodes("localhost").disks.zfs("rpool").scrub
+    scrub_ep.put.side_effect = AttributeError("no put")
+    scrub_ep.post.return_value = {"data": {"upid": "UPID:s1"}}
+    assert _extract_json(tools.scrub_zfs("rpool"))["upid"] == "UPID:s1"
+
+    scrub_ep.put.side_effect = RuntimeError("405 Method Not Allowed")
+    scrub_ep.post.return_value = "UPID:s2"
+    assert _extract_json(tools.scrub_zfs("rpool"))["upid"] == "UPID:s2"
+
+    scrub_ep.put.side_effect = RuntimeError("500 internal")
+    with pytest.raises(RuntimeError):
+        tools.scrub_zfs("rpool")
+
+
+@pytest.mark.asyncio
+async def test_pbs_plugin_wrappers_list_targets_and_models():
+    from types import SimpleNamespace
+    from pydantic import ValidationError
+    from proxmox_mcp.config.models import CommandPolicyConfig, TargetConfig
+    from proxmox_mcp.observability import ToolMetrics
+    from proxmox_mcp.security.command_policy import CommandPolicyGate
+    from proxmox_mcp.services.builtin_tool_plugins import CoreToolsPlugin, PBSToolsPlugin
+
+    # Cover ProxmoxConfig/TargetConfig validators (including non-str service and PBS port default)
+    pc = ProxmoxConfig(host="10.0.0.20", service="pbs")
+    assert pc.service == "PBS" and pc.port == 8007
+    with pytest.raises(ValidationError):
+        ProxmoxConfig(host="10.0.0.20", service=123)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        TargetConfig(host="10.0.0.20", service=123, auth=AuthConfig(user="u", token_name="t", token_value="v"))  # type: ignore[arg-type]
+
+    # Cover _wrap_async TypeError fallback for legacy stub registry
+    class LegacyReg:
+        def resolve(self, requested):
+            return ResolvedTarget(
+                name="default",
+                config=ProxmoxConfig(host="10.0.0.10"),
+                auth=AuthConfig(user="u", token_name="t", token_value="v"),
+                kind="standalone",
+                readonly=False,
+            )
+
+    async def fake_async_handler():
+        return "ok"
+
+    fake_srv_async = SimpleNamespace(
+        target_registry=LegacyReg(),
+        metrics=ToolMetrics(),
+        target_command_policies={"default": CommandPolicyGate(CommandPolicyConfig())},
+        target_toolsets={"default": SimpleNamespace(h=fake_async_handler)},
+        target_tools=lambda _name: SimpleNamespace(h=fake_async_handler),
+        logger=MagicMock(),
+    )
+    assert await RegistryPluginBase()._wrap_async(fake_srv_async, "get_nodes", lambda ts: ts.h)() == "ok"
+
+    # Cover CoreToolsPlugin.list_targets PBS discover and all 7 PBSToolsPlugin wrappers
+    registered = {}
+
+    class FakeRegistry:
+        def tool(self, **_kw):
+            def dec(fn):
+                registered[fn.__name__] = fn
+                return fn
+            return dec
+
+    pbs_target = ResolvedTarget(
+        name="pbs",
+        config=ProxmoxConfig(host="10.0.0.20", service="PBS"),
+        auth=AuthConfig(user="u@pbs", token_name="t", token_value="v"),
+        kind="pbs",
+        readonly=False,
+    )
+    mock_api = MagicMock()
+    mock_api.admin.datastore.get.return_value = [{"store": "ds1"}]
+    mock_api.admin.datastore("ds1").status.get.return_value = {"total": 100}
+    mock_api.admin.datastore("ds1").verify.post.return_value = "UPID:v"
+    mock_api.nodes("localhost").tasks.get.return_value = []
+    mock_api.nodes("localhost").tasks("UPID:1").log.get.return_value = []
+    mock_api.nodes("localhost").disks.list.get.return_value = []
+    mock_api.nodes("localhost").disks.zfs.get.return_value = []
+    mock_api.nodes("localhost").disks.zfs("rpool").scrub.put.return_value = "UPID:s"
+
+    class RealLikeReg:
+        def resolve(self, requested=None, *, expected_service=None):
+            return pbs_target
+        def describe(self, discover=None, allowed_names=None):
+            return [discover(pbs_target)]
+
+    pbs_srv = SimpleNamespace(
+        tool_registry=FakeRegistry(),
+        proxmox_managers={"pbs": MagicMock(get_api=MagicMock(return_value=mock_api))},
+        target_registry=RealLikeReg(),
+        config=SimpleNamespace(mcp=SimpleNamespace(client_permissions=None, transport="STDIO")),
+        metrics=ToolMetrics(),
+        target_command_policies={"pbs": CommandPolicyGate(CommandPolicyConfig())},
+        target_toolsets={"pbs": SimpleNamespace(pbs_tools=PBSTools(mock_api))},
+        target_tools=lambda _name: SimpleNamespace(pbs_tools=PBSTools(mock_api)),
+        logger=MagicMock(),
+    )
+    CoreToolsPlugin().register(pbs_srv)
+    PBSToolsPlugin().register(pbs_srv)
+
+    assert registered["list_targets"]() == [{"reachable": True, "nodes": ["localhost"]}]
+    assert registered["pbs_get_datastores"]()
+    assert registered["pbs_get_tasks"]()
+    assert registered["pbs_get_task_log"](upid="UPID:1")
+    assert registered["pbs_get_disks"]()
+    assert registered["pbs_get_zfs"]()
+    assert registered["pbs_verify_datastore"](store="ds1")
+    assert registered["pbs_scrub_zfs"](pool="rpool")
