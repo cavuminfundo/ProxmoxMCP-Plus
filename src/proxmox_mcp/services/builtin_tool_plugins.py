@@ -88,6 +88,13 @@ from ..tools.definitions import (
     RESTART_NODE_SERVICE_DESC,
     GET_NODE_NETWORK_DESC,
     GET_NODE_TASKS_DESC,
+    PBS_GET_DATASTORES_DESC,
+    PBS_GET_TASKS_DESC,
+    PBS_GET_TASK_LOG_DESC,
+    PBS_GET_DISKS_DESC,
+    PBS_GET_ZFS_DESC,
+    PBS_VERIFY_DATASTORE_DESC,
+    PBS_SCRUB_ZFS_DESC,
 )
 from proxmox_mcp.security.access import client_principal, permitted_targets
 from proxmox_mcp.tools.base import ProxmoxTool
@@ -113,6 +120,9 @@ class CoreToolsPlugin(RegistryPluginBase):
             try:
                 def discover(target: Any) -> dict[str, Any]:
                     probe = probes[target.name]
+                    if target.config.service.upper() == "PBS":
+                        probe._cached_read("health:pbs_datastore", lambda: probe.proxmox.admin.datastore.get())
+                        return {"reachable": True, "nodes": ["localhost"]}
                     nodes = probe._cached_read("health:nodes", lambda: probe.proxmox.nodes.get())
                     return {
                         "reachable": True,
@@ -301,7 +311,7 @@ class JobsToolsPlugin(RegistryPluginBase):
         @server.tool_registry.tool(description="Reconcile an interrupted retry after verifying its remote task or confirming that no task was submitted. Never submits a new operation.")
         def reconcile_job(job_id: str, upid: str | None = None, confirmed_not_submitted: bool = False,
                           approval_token: str | None = None, target: str | None = None) -> Any:
-            return self._wrap_sync(server, "reconcile_job", lambda ts: ts.jobs_tools.reconcile_job)(
+            return self._wrap_sync(server, "reconcile_job", lambda ts: ts.jobs_tools.reconcile_job, expected_service=None)(
                 job_id=job_id, upid=upid, confirmed_not_submitted=confirmed_not_submitted, approval_token=approval_token, target=target)
 
         @server.tool_registry.tool(description=LIST_JOBS_DESC)
@@ -311,7 +321,7 @@ class JobsToolsPlugin(RegistryPluginBase):
             limit: Annotated[int, Field(description="Maximum jobs to return", ge=1, le=500, default=100)] = 100,
             target: Annotated[Optional[str], Field(description="Configured target name; required when multiple targets exist", default=None)] = None,
         ) -> Any:
-            return self._wrap_sync(server, "list_jobs", lambda ts: ts.jobs_tools.list_jobs)(
+            return self._wrap_sync(server, "list_jobs", lambda ts: ts.jobs_tools.list_jobs, expected_service=None)(
                 status=status,
                 tool_name=tool_name,
                 limit=limit,
@@ -324,7 +334,7 @@ class JobsToolsPlugin(RegistryPluginBase):
             refresh: Annotated[bool, Field(description="Poll Proxmox before returning", default=False)] = False,
             target: Annotated[Optional[str], Field(description="Configured target name; required when multiple targets exist", default=None)] = None,
         ) -> Any:
-            return self._wrap_sync(server, "get_job", lambda ts: ts.jobs_tools.get_job)(
+            return self._wrap_sync(server, "get_job", lambda ts: ts.jobs_tools.get_job, expected_service=None)(
                 job_id=job_id,
                 refresh=refresh,
                 target=target,
@@ -337,14 +347,14 @@ class JobsToolsPlugin(RegistryPluginBase):
             include_audit: Annotated[bool, Field(description="Include historical audit events; disable for bounded polling", default=True)] = True,
             force: Annotated[bool, Field(description="Bypass cached and terminal task state", default=False)] = False,
         ) -> Any:
-            return self._wrap_sync(server, "poll_job", lambda ts: ts.jobs_tools.poll_job)(job_id=job_id, target=target, include_audit=include_audit, force=force)
+            return self._wrap_sync(server, "poll_job", lambda ts: ts.jobs_tools.poll_job, expected_service=None)(job_id=job_id, target=target, include_audit=include_audit, force=force)
 
         @server.tool_registry.tool(description=CANCEL_JOB_DESC)
         def cancel_job(
             job_id: Annotated[str, Field(description="Stable job identifier")],
             target: Annotated[Optional[str], Field(description="Configured target name; required when multiple targets exist", default=None)] = None,
         ) -> Any:
-            return self._wrap_sync(server, "cancel_job", lambda ts: ts.jobs_tools.cancel_job)(job_id=job_id, target=target)
+            return self._wrap_sync(server, "cancel_job", lambda ts: ts.jobs_tools.cancel_job, expected_service=None)(job_id=job_id, target=target)
 
         @server.tool_registry.tool(description=RETRY_JOB_DESC)
         def retry_job(
@@ -352,7 +362,7 @@ class JobsToolsPlugin(RegistryPluginBase):
             approval_token: Annotated[Optional[str], Field(description="Optional approval token for high-risk job retries", default=None)] = None,
             target: Annotated[Optional[str], Field(description="Configured target name; required when multiple targets exist", default=None)] = None,
         ) -> Any:
-            return self._wrap_sync(server, "retry_job", lambda ts: ts.jobs_tools.retry_job)(
+            return self._wrap_sync(server, "retry_job", lambda ts: ts.jobs_tools.retry_job, expected_service=None)(
                 job_id=job_id, approval_token=approval_token, target=target
             )
 
@@ -1356,3 +1366,72 @@ class LogToolsPlugin(RegistryPluginBase):
                 until=until,
                 target=target,
             )
+
+
+class PBSToolsPlugin(RegistryPluginBase):
+    def register(self, server: Any) -> None:
+        @server.tool_registry.tool(description=PBS_GET_DATASTORES_DESC)
+        def pbs_get_datastores(
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "pbs_get_datastores", lambda ts: ts.pbs_tools.get_datastores, expected_service="PBS")(target=target)
+
+        @server.tool_registry.tool(description=PBS_GET_TASKS_DESC)
+        def pbs_get_tasks(
+            limit: Annotated[int, Field(description="Maximum number of tasks to return", ge=1, le=500, default=50)] = 50,
+            running_only: Annotated[bool, Field(description="Only return currently running tasks", default=False)] = False,
+            store: Annotated[Optional[str], Field(description="Filter tasks by datastore name", default=None)] = None,
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "pbs_get_tasks", lambda ts: ts.pbs_tools.get_tasks, expected_service="PBS")(
+                limit=limit, running_only=running_only, store=store, target=target
+            )
+
+        @server.tool_registry.tool(description=PBS_GET_TASK_LOG_DESC)
+        def pbs_get_task_log(
+            upid: Annotated[str, Field(description="Unique Process ID of the PBS task")],
+            start: Annotated[int, Field(description="Start line for pagination", ge=0, default=0)] = 0,
+            limit: Annotated[int, Field(description="Maximum log lines to return", ge=1, le=500, default=500)] = 500,
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "pbs_get_task_log", lambda ts: ts.pbs_tools.get_task_log, expected_service="PBS")(
+                upid=upid, start=start, limit=limit, target=target
+            )
+
+        @server.tool_registry.tool(description=PBS_GET_DISKS_DESC)
+        def pbs_get_disks(
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "pbs_get_disks", lambda ts: ts.pbs_tools.get_disks, expected_service="PBS")(target=target)
+
+        @server.tool_registry.tool(description=PBS_GET_ZFS_DESC)
+        def pbs_get_zfs(
+            pool: Annotated[Optional[str], Field(description="ZFS pool name to query", default=None)] = None,
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(server, "pbs_get_zfs", lambda ts: ts.pbs_tools.get_zfs, expected_service="PBS")(pool=pool, target=target)
+
+        @server.tool_registry.tool(description=PBS_VERIFY_DATASTORE_DESC)
+        def pbs_verify_datastore(
+            store: Annotated[str, Field(description="PBS datastore name to verify")],
+            ignore_verified: Annotated[bool, Field(description="Skip chunks already verified within retention", default=True)] = True,
+            outdated_after: Annotated[Optional[int], Field(description="Re-verify chunks older than this many days", default=None)] = None,
+            approval_token: Annotated[Optional[str], Field(description="Approval token for high-risk operation", default=None)] = None,
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(
+                server, "pbs_verify_datastore", lambda ts: ts.pbs_tools.verify_datastore,
+                high_risk=True, expected_service="PBS"
+            )(store=store, ignore_verified=ignore_verified, outdated_after=outdated_after, approval_token=approval_token, target=target)
+
+        @server.tool_registry.tool(description=PBS_SCRUB_ZFS_DESC)
+        def pbs_scrub_zfs(
+            pool: Annotated[str, Field(description="PBS ZFS pool name to scrub")],
+            approval_token: Annotated[Optional[str], Field(description="Approval token for high-risk operation", default=None)] = None,
+            target: Annotated[Optional[str], Field(description="Configured PBS target name", default=None)] = None,
+        ) -> Any:
+            return self._wrap_sync(
+                server, "pbs_scrub_zfs", lambda ts: ts.pbs_tools.scrub_zfs,
+                high_risk=True, expected_service="PBS"
+            )(pool=pool, approval_token=approval_token, target=target)
+

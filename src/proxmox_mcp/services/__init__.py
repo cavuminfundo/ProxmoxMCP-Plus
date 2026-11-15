@@ -12,6 +12,7 @@ from .builtin_tool_plugins import (
     LogToolsPlugin,
     SnapshotToolsPlugin,
     VMToolsPlugin,
+    PBSToolsPlugin,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "ImageToolsPlugin",
     "BackupToolsPlugin",
     "LogToolsPlugin",
+    "PBSToolsPlugin",
 ]

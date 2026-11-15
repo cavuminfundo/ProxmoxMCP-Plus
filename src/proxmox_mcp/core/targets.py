@@ -61,13 +61,26 @@ class TargetRegistry:
             ssh=target.ssh, command_policy=target.command_policy,
         )
 
-    def resolve(self, requested: str | None = None) -> ResolvedTarget:
+    def resolve(self, requested: str | None = None, *, expected_service: str | None = None) -> ResolvedTarget:
         if requested is not None:
             try:
-                return self._targets[requested]
+                target = self._targets[requested]
             except KeyError as exc:
                 available = ", ".join(sorted(self._targets))
                 raise ValueError(f"Unknown Proxmox target {requested!r}; available targets: {available}") from exc
+            if expected_service is not None and target.config.service.upper() != expected_service.upper():
+                raise ValueError(f"Target '{target.name}' is configured as {target.config.service}, not {expected_service}")
+            return target
+
+        if expected_service is not None:
+            matching = [t for t in self._targets.values() if t.config.service.upper() == expected_service.upper()]
+            if len(matching) == 1:
+                return matching[0]
+            if not matching:
+                raise ValueError(f"No {expected_service} target is configured")
+            available = ", ".join(sorted(t.name for t in matching))
+            raise ValueError(f"Multiple {expected_service} targets are configured; specify target: {available}")
+
         if len(self._targets) == 1:
             return next(iter(self._targets.values()))
         available = ", ".join(sorted(self._targets))

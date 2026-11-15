@@ -25,6 +25,11 @@ _READ_ONLY_TOOLS = {
     "get_node_services",
     "get_node_network",
     "get_node_tasks",
+    "pbs_get_datastores",
+    "pbs_get_tasks",
+    "pbs_get_task_log",
+    "pbs_get_disks",
+    "pbs_get_zfs",
 }
 
 
@@ -88,6 +93,7 @@ class RegistryPluginBase(ToolRegistryPlugin):
         handler_factory: Callable[[Any], Callable[..., Any]],
         *,
         high_risk: bool = False,
+        expected_service: str | None = "PVE",
     ) -> Callable[..., Any]:
         def wrapped(*args: Any, **kwargs: Any) -> Any:
             start = time.perf_counter()
@@ -97,7 +103,10 @@ class RegistryPluginBase(ToolRegistryPlugin):
             approval_token = kwargs.get("approval_token") or approval_context.get()
             resolved_target = None
             try:
-                resolved_target = server.target_registry.resolve(target)
+                try:
+                    resolved_target = server.target_registry.resolve(target, expected_service=expected_service)
+                except TypeError:
+                    resolved_target = server.target_registry.resolve(target)
                 if resolved_target.readonly and tool_name not in _READ_ONLY_TOOLS:
                     raise ValueError(
                         f"Target '{resolved_target.name}' is configured read-only; "
@@ -142,6 +151,7 @@ class RegistryPluginBase(ToolRegistryPlugin):
         handler_factory: Callable[[Any], Callable[..., Awaitable[Any]]],
         *,
         high_risk: bool = False,
+        expected_service: str | None = "PVE",
     ) -> Callable[..., Awaitable[Any]]:
         async def wrapped(*args: Any, **kwargs: Any) -> Any:
             start = time.perf_counter()
@@ -151,7 +161,10 @@ class RegistryPluginBase(ToolRegistryPlugin):
             approval_token = kwargs.get("approval_token") or approval_context.get()
             resolved_target = None
             try:
-                resolved_target = server.target_registry.resolve(target)
+                try:
+                    resolved_target = server.target_registry.resolve(target, expected_service=expected_service)
+                except TypeError:
+                    resolved_target = server.target_registry.resolve(target)
                 if resolved_target.readonly and tool_name not in _READ_ONLY_TOOLS:
                     raise ValueError(
                         f"Target '{resolved_target.name}' is configured read-only; "

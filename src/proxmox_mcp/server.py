@@ -40,6 +40,7 @@ from proxmox_mcp.services.builtin_tool_plugins import (
     ImageToolsPlugin,
     JobsToolsPlugin,
     LogToolsPlugin,
+    PBSToolsPlugin,
     SnapshotToolsPlugin,
     VMToolsPlugin,
 )
@@ -50,6 +51,7 @@ from proxmox_mcp.tools.iso import ISOTools
 from proxmox_mcp.tools.jobs import JobsTools
 from proxmox_mcp.tools.logs import LogTools
 from proxmox_mcp.tools.node import NodeTools
+from proxmox_mcp.tools.pbs import PBSTools
 from proxmox_mcp.tools.snapshots import SnapshotTools
 from proxmox_mcp.tools.storage import StorageTools
 from proxmox_mcp.tools.vm import VMTools
@@ -185,6 +187,7 @@ class ProxmoxMCPServer:
                 backup_tools=BackupTools(api, metrics=self.metrics, job_store=job_store),
                 jobs_tools=JobsTools(job_store),
                 log_tools=LogTools(api, metrics=self.metrics, job_store=job_store),
+                pbs_tools=PBSTools(api, metrics=self.metrics, job_store=job_store),
             )
 
         if self.target_registry.is_legacy:
@@ -204,6 +207,7 @@ class ProxmoxMCPServer:
             self.backup_tools = ts.backup_tools
             self.jobs_tools = ts.jobs_tools
             self.log_tools = ts.log_tools
+            self.pbs_tools = ts.pbs_tools
 
         log_level = cast(
             Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
@@ -298,6 +302,7 @@ class ProxmoxMCPServer:
         self.tool_registry.add(ImageToolsPlugin())
         self.tool_registry.add(BackupToolsPlugin())
         self.tool_registry.add(LogToolsPlugin())
+        self.tool_registry.add(PBSToolsPlugin())
         self.tool_registry.register_all(self)
 
         unavailable = self.tool_registry.requested_but_unavailable

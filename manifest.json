@@ -413,6 +413,34 @@
         {
             "name": "reconcile_job",
             "description": "Reconcile an uncertain retry with a verified task UPID or explicit confirmation that no task was submitted."
+        },
+        {
+            "name": "pbs_get_datastores",
+            "description": "List Proxmox Backup Server (PBS) datastores and their usage status."
+        },
+        {
+            "name": "pbs_get_tasks",
+            "description": "List recent or running tasks on Proxmox Backup Server (PBS)."
+        },
+        {
+            "name": "pbs_get_task_log",
+            "description": "Read log lines for a specific Proxmox Backup Server (PBS) task UPID."
+        },
+        {
+            "name": "pbs_get_disks",
+            "description": "List physical disks detected on Proxmox Backup Server (PBS)."
+        },
+        {
+            "name": "pbs_get_zfs",
+            "description": "List ZFS pools and pool health status on Proxmox Backup Server (PBS)."
+        },
+        {
+            "name": "pbs_verify_datastore",
+            "description": "Start a non-destructive verify job on a Proxmox Backup Server (PBS) datastore."
+        },
+        {
+            "name": "pbs_scrub_zfs",
+            "description": "Start a non-destructive ZFS scrub on a Proxmox Backup Server (PBS) pool."
         }
     ],
     "keywords": [

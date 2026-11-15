@@ -84,5 +84,12 @@ BUILTIN_TOOL_NAMES = frozenset(
         "get_cluster_log",
         "get_node_firewall_log",
         "get_guest_firewall_log",
+        "pbs_get_datastores",
+        "pbs_get_tasks",
+        "pbs_get_task_log",
+        "pbs_get_disks",
+        "pbs_get_zfs",
+        "pbs_verify_datastore",
+        "pbs_scrub_zfs",
     }
 )

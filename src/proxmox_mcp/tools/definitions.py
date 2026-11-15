@@ -772,3 +772,12 @@ until   - Show entries until this UNIX epoch timestamp (optional)
 Example:
 get_guest_firewall_log node='pve' vmid=100 vm_type='qemu' limit=50
 """
+
+PBS_GET_DATASTORES_DESC = """Get PBS datastores and their current status (used/total space)."""
+PBS_GET_TASKS_DESC = """Get task history from PBS with optional filters for limit, running_only and store."""
+PBS_GET_TASK_LOG_DESC = """Get PBS task log output for a given UPID."""
+PBS_GET_DISKS_DESC = """List physical disks and SMART status from PBS host."""
+PBS_GET_ZFS_DESC = """Get PBS ZFS pool status and topology."""
+PBS_VERIFY_DATASTORE_DESC = """Start a background verification job on a PBS datastore."""
+PBS_SCRUB_ZFS_DESC = """Start a background ZFS scrub on a PBS ZFS pool."""
+

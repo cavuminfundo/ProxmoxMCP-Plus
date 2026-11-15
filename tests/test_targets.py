@@ -291,3 +291,104 @@ def test_shared_local_port_rejected_even_with_distinct_ssh_gateways():
         Config.model_validate(
             {"targets": {"a": target("opa", 22), "b": target("opb", 2222)}}
         )
+
+
+def test_pbs_target_defaults_port_8007():
+    auth = {"user": "u", "token_name": "t", "token_value": "v"}
+    config = Config.model_validate({
+        "targets": {
+            "pbs_default": {
+                "host": "pbs.example",
+                "service": "pbs",
+                "kind": "pbs",
+                "auth": auth,
+            },
+            "pbs_explicit_port": {
+                "host": "pbs2.example",
+                "port": 8008,
+                "service": "PBS",
+                "kind": "pbs",
+                "auth": auth,
+            },
+        }
+    })
+    registry = TargetRegistry(config)
+    t1 = registry.resolve("pbs_default")
+    assert t1.config.port == 8007
+    assert t1.config.service == "PBS"
+    assert t1.kind == "pbs"
+
+    t2 = registry.resolve("pbs_explicit_port")
+    assert t2.config.port == 8008
+    assert t2.config.service == "PBS"
+
+
+def test_pbs_target_auto_resolution_with_pve_targets():
+    auth = {"user": "u", "token_name": "t", "token_value": "v"}
+    config = Config.model_validate({
+        "targets": {
+            "pve1": {
+                "host": "pve1.example",
+                "service": "PVE",
+                "auth": auth,
+            },
+            "pbs1": {
+                "host": "pbs1.example",
+                "service": "PBS",
+                "auth": auth,
+            },
+        }
+    })
+    registry = TargetRegistry(config)
+
+    resolved_pbs = registry.resolve(expected_service="PBS")
+    assert resolved_pbs.name == "pbs1"
+    assert resolved_pbs.config.service == "PBS"
+
+    resolved_pve = registry.resolve(expected_service="PVE")
+    assert resolved_pve.name == "pve1"
+    assert resolved_pve.config.service == "PVE"
+
+    with pytest.raises(ValueError, match="Multiple Proxmox targets are configured"):
+        registry.resolve()
+
+
+def test_cross_service_rejection():
+    auth = {"user": "u", "token_name": "t", "token_value": "v"}
+    config = Config.model_validate({
+        "targets": {
+            "pve1": {"host": "pve1.example", "service": "PVE", "auth": auth},
+            "pbs1": {"host": "pbs1.example", "service": "PBS", "auth": auth},
+        }
+    })
+    registry = TargetRegistry(config)
+
+    with pytest.raises(ValueError, match="Target 'pve1' is configured as PVE, not PBS"):
+        registry.resolve("pve1", expected_service="PBS")
+
+    with pytest.raises(ValueError, match="Target 'pbs1' is configured as PBS, not PVE"):
+        registry.resolve("pbs1", expected_service="PVE")
+
+
+def test_missing_or_multiple_pbs_service_resolution():
+    auth = {"user": "u", "token_name": "t", "token_value": "v"}
+    config_no_pbs = Config.model_validate({
+        "targets": {
+            "pve1": {"host": "pve1.example", "service": "PVE", "auth": auth},
+            "pve2": {"host": "pve2.example", "service": "PVE", "auth": auth},
+        }
+    })
+    registry_no_pbs = TargetRegistry(config_no_pbs)
+    with pytest.raises(ValueError, match="No PBS target is configured"):
+        registry_no_pbs.resolve(expected_service="PBS")
+
+    config_multi_pbs = Config.model_validate({
+        "targets": {
+            "pbs1": {"host": "pbs1.example", "service": "PBS", "auth": auth},
+            "pbs2": {"host": "pbs2.example", "service": "PBS", "auth": auth},
+        }
+    })
+    registry_multi_pbs = TargetRegistry(config_multi_pbs)
+    with pytest.raises(ValueError, match="Multiple PBS targets are configured"):
+        registry_multi_pbs.resolve(expected_service="PBS")
+

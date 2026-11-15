@@ -48,9 +48,22 @@ class ProxmoxConfig(BaseModel):
     port: int = 8006  # Optional: API port (default: 8006)
     timeout: int = 30  # Optional: API timeout in seconds (default: 30)
     verify_ssl: StrictBool = True  # Optional: SSL verification (default: True)
-    service: str = "PVE"  # Optional: Service type (default: PVE)
+    service: Literal["PVE", "PBS"] = "PVE"
     session_pool_size: int = Field(default=1, ge=1, le=32)
     session_pool_timeout: float = Field(default=30.0, gt=0, le=300, allow_inf_nan=False)
+
+    @field_validator("service", mode="before")
+    @classmethod
+    def _normalize_service(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
+    @model_validator(mode="after")
+    def _default_pbs_port(self) -> ProxmoxConfig:
+        if self.service == "PBS" and "port" not in self.model_fields_set:
+            self.port = 8007
+        return self
 
 
 class APITunnelConfig(BaseModel):
@@ -84,15 +97,28 @@ class TargetConfig(BaseModel):
     timeout: int = 30
     verify_ssl: StrictBool = True
     allow_insecure_tls: StrictBool = False
-    service: str = "PVE"
+    service: Literal["PVE", "PBS"] = "PVE"
     session_pool_size: int = Field(default=1, ge=1, le=32)
     session_pool_timeout: float = Field(default=30.0, gt=0, le=300, allow_inf_nan=False)
     auth: AuthConfig
-    kind: Literal["cluster", "standalone"] = "standalone"
+    kind: Literal["cluster", "standalone", "pbs"] = "standalone"
     readonly: StrictBool = False
     api_tunnel: Optional[APITunnelConfig] = None
     ssh: Optional[SSHConfig] = None
     command_policy: Optional[CommandPolicyConfig] = None
+
+    @field_validator("service", mode="before")
+    @classmethod
+    def _normalize_service(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
+    @model_validator(mode="after")
+    def _default_pbs_port(self) -> TargetConfig:
+        if self.service == "PBS" and "port" not in self.model_fields_set:
+            self.port = 8007
+        return self
 
 
 class LoggingConfig(BaseModel):

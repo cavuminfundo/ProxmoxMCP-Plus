@@ -99,7 +99,8 @@ def test_backup_partial_inventory_reports_partial_status():
 
 def test_documented_full_command_matching_actually_uses_substring_search():
     policy = CommandPolicyGate(CommandPolicyConfig(mode='allowlist', allow_patterns=['uname']))
-    assert policy.evaluate('echo different-command; uname').allowed is True
+    assert policy.evaluate('echo different-command uname').allowed is True
+    assert policy.evaluate('echo different-command; uname').allowed is False
 
 
 @pytest.mark.parametrize('value', ['../lxc/200', '100?x=', '100#fragment', '100/..', '0', '-1', '', None, True, 1.5, '\u0661\u0660\u0660'])
