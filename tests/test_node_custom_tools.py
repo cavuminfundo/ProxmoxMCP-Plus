@@ -108,7 +108,8 @@ def test_get_node_journal(mock_api):
     result = tools.get_node_journal("node1", last_lines=100)
     assert len(result) == 1
     mock_api.nodes.assert_called_with("node1")
-    mock_api.nodes.return_value.journal.get.assert_called_once_with(last_lines=100)
+    mock_api.nodes.return_value.journal.get.assert_called_once_with(lastentries=100)
+    assert "last_lines" not in mock_api.nodes.return_value.journal.get.call_args.kwargs
     assert "Started Proxmox VE" in result[0].text
 
     mock_api.nodes.return_value.journal.get.side_effect = RuntimeError("journal failed")

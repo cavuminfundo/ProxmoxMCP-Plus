@@ -21,6 +21,31 @@ def _tokens_match(provided: str | None, expected: str | None) -> bool:
 
 
 _SHELL_CHAIN_RE = re.compile(r"(;|&&|\|\||\||`|\$\(|\$\{|\{|\}|>|<|\r|\n|\$IFS)")
+_DOCKER_CMD_RE = re.compile(r"^\s*docker\s+", flags=re.IGNORECASE)
+_DOCKER_QUOTED_FORMAT_RE = re.compile(
+    r"""(\s--format(?:=|\s+))(?:"([^"`$\\;\r\n|&<>]*)"|'([^'`$\\;\r\n|&<>]*)')""",
+    flags=re.IGNORECASE,
+)
+_SAFE_GO_TEMPLATE_TOKEN_RE = re.compile(r"\{\{[ \t]*\.[A-Za-z0-9_.]+[ \t]*\}\}")
+
+
+def _strip_safe_docker_go_templates(command: str) -> str:
+    """Strip validated Go-template field placeholders ({{.Field}}) inside quoted
+    docker --format arguments before shell-metacharacter scanning.
+    """
+    if not _DOCKER_CMD_RE.match(command):
+        return command
+
+    def _replace(match: re.Match[str]) -> str:
+        prefix = match.group(1)
+        if match.group(2) is not None:
+            quote, body = '"', match.group(2)
+        else:
+            quote, body = "'", match.group(3)
+        cleaned = _SAFE_GO_TEMPLATE_TOKEN_RE.sub("", body)
+        return f"{prefix}{quote}{cleaned}{quote}"
+
+    return _DOCKER_QUOTED_FORMAT_RE.sub(_replace, command)
 
 
 @dataclass(frozen=True)
@@ -82,7 +107,9 @@ class CommandPolicyGate:
                 "CMD_POLICY_NOT_ALLOWLISTED",
                 "Command not allowlisted by policy",
             )
-        if mode in {"deny_all", "allowlist"} and _SHELL_CHAIN_RE.search(command):
+        if mode in {"deny_all", "allowlist"} and _SHELL_CHAIN_RE.search(
+            _strip_safe_docker_go_templates(command)
+        ):
             return CommandPolicyDecision(
                 False,
                 "CMD_POLICY_SHELL_METACHAR",

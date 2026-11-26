@@ -176,6 +176,9 @@ class CommandPolicyConfig(BaseModel):
             r"^sysctl(\s+(-[anN]|--all|--names|--values))*(\s+[A-Za-z0-9_./-]+)*$",
             r"^apt(-get)?\s+(update|list|show|policy|dist-upgrade|full-upgrade|check)(\s|$)",
             r"^apt-cache\s+(policy|show|search|madison|depends|rdepends)(\s|$)",
+            r"^du(?:\s+(?:(?-i:-[shxkabcm]+)|(?-i:-d)\s+\d+|--max-depth=\d+|--summarize|--human-readable|--one-file-system|--total|--apparent-size|--bytes))*(?:\s+[A-Za-z0-9_./][A-Za-z0-9_./-]*)*$",
+            r"^ls(?:\s+(?:(?-i:-[lahtrS1dF]+)|--all|--almost-all|--human-readable|--reverse|--size|--classify))*(?:\s+[A-Za-z0-9_./][A-Za-z0-9_./-]*)*$",
+            r"^journalctl(?:\s+(?:--no-pager|--utc|--reverse|--catalog|--all|--quiet|--dmesg|--boot(?:=(?:[+-]?\d+|[0-9a-fA-F]{32}(?:[+-]\d+)?|all))?|(?-i:-b)(?:\s+(?:[+-]?\d+|[0-9a-fA-F]{32}(?:[+-]\d+)?|all))?|(?-i:-u)\s+[A-Za-z0-9_.@:][A-Za-z0-9_.@:-]*|--unit=[A-Za-z0-9_.@:][A-Za-z0-9_.@:-]*|(?-i:-n)\s+\d+|--lines=\d+|(?-i:-p)\s+[A-Za-z0-9.]+|--priority=[A-Za-z0-9.]+|--since=(?:'[^'\"`$;|&<>\\\r\n]+'|\"[^'\"`$;|&<>\\\r\n]+\"|[A-Za-z0-9_.:+-]+)|--since\s+(?:'[^'\"`$;|&<>\\\r\n]+'|\"[^'\"`$;|&<>\\\r\n]+\"|[A-Za-z0-9_.+][A-Za-z0-9_.:+-]*)|--until=(?:'[^'\"`$;|&<>\\\r\n]+'|\"[^'\"`$;|&<>\\\r\n]+\"|[A-Za-z0-9_.:+-]+)|--until\s+(?:'[^'\"`$;|&<>\\\r\n]+'|\"[^'\"`$;|&<>\\\r\n]+\"|[A-Za-z0-9_.+][A-Za-z0-9_.:+-]*)))*$",
         ]
     )
     deny_patterns: List[str] = Field(
@@ -188,6 +191,7 @@ class CommandPolicyConfig(BaseModel):
             r"(^|\s)zpool\s+scrub\s+-s(\s|$)",
             r"(^|\s)sysctl\s+(-w|--write|--system|-p)(\s|=|$)",
             r"(^|\s)zramctl\s+.*(--reset|--size|-r|-s)(\s|=|$)",
+            r"(^|\s)journalctl\s+.*(--vacuum-size|--vacuum-time|--vacuum-files|--rotate|--flush|--relinquish-var|--smart-relinquish-var|--sync|--update-catalog|--setup-keys)(\s|=|$)",
         ]
     )
     require_approval_token: bool = False

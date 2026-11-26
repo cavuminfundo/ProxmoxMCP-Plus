@@ -331,7 +331,7 @@ class NodeTools(ProxmoxTool):
     def get_node_journal(self, node: str, last_lines: int = 100) -> List[Content]:
         """Get recent systemd journal logs from a Proxmox node."""
         try:
-            journal = self.proxmox.nodes(node).journal.get(last_lines=last_lines)
+            journal = self.proxmox.nodes(node).journal.get(lastentries=last_lines)
             return self._json_fmt((node, journal))
         except Exception as e:
             self._handle_error(f"get journal logs for node {node}", e)

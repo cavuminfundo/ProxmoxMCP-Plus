@@ -276,3 +276,115 @@ def test_loader_respects_custom_allow_patterns_env(monkeypatch):
     monkeypatch.setenv("PROXMOX_TOKEN_VALUE", "val")
     cfg = load_config()
     assert cfg.command_policy.allow_patterns == ["^uname$", "^id$"]
+
+
+@pytest.mark.parametrize("full_match", [False, True])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'docker ps --format "{{.Names}} {{.Image}}"',
+        "docker ps --format '{{.Names}}: {{.Status}}'",
+        'docker ps --format="{{ .Names }}"',
+    ],
+)
+def test_docker_format_go_templates_allowed(full_match, command):
+    patterns = (
+        [r"^docker\s+(ps|images)(?:\s+.*)?$"]
+        if full_match
+        else [r"^docker\s+(ps|images)(\s|$)"]
+    )
+    gate = _gate(mode="allowlist", allow_patterns=patterns)
+    decision = gate.evaluate(command, full_match_allow_patterns=full_match)
+    assert decision.allowed is True
+    assert decision.code == "CMD_POLICY_ALLOW"
+
+
+@pytest.mark.parametrize("full_match", [False, True])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'docker ps --format "{{.Names}}"; rm -rf /',
+        'docker ps --format "$(id)"',
+        'docker ps --format "${IFS}"',
+        'docker ps --format "{{.Names}} {rm,-rf,/}"',
+        "docker ps --format {{.Names}}",
+        'docker ps --format "{{.Names}}" | grep x',
+        'docker ps --format "foo\\" ; id"',
+        r'docker ps --format "table {{.Names}}\t{{.Status}}"',
+        'docker ps --x--format "{{.Names}}"',
+        'ls --format "{{.Names}}"',
+        "{rm,-rf,/}",
+    ],
+)
+def test_docker_format_bypasses_blocked_as_shell_metachar(full_match, command):
+    patterns = (
+        [r"^docker\s+(ps|images)(?:\s+.*)?$", r"^ls\s+.*$", r"^\{.*$"]
+        if full_match
+        else [r"^docker\s+(ps|images)(\s|$)", r"^ls(\s|$)", r"^\{"]
+    )
+    # Empty deny_patterns ensures "; rm -rf /" exercises the metachar gate rather than deny_patterns.
+    gate = _gate(mode="allowlist", allow_patterns=patterns, deny_patterns=[])
+    decision = gate.evaluate(command, full_match_allow_patterns=full_match)
+    assert decision.allowed is False
+    assert decision.code == "CMD_POLICY_SHELL_METACHAR"
+
+
+@pytest.mark.parametrize("full_match", [False, True])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "du -h --max-depth=2 -x /",
+        "du -sh /data /media /mnt /opt /srv /var /home /root",
+        "du -h -d 2 /var",
+        "ls -la /",
+        "ls -lh /var/log",
+        "journalctl -u hermes-core --since '12 hours ago' --no-pager -n 100",
+        "journalctl -b -p err --no-pager -n 50",
+        "journalctl -b -1 --no-pager -n 50",
+        "journalctl --boot=0",
+        "journalctl --since=-1h",
+        'journalctl --since "2026-11-25 00:00:00" --until "2026-11-26 00:00:00" --no-pager',
+    ],
+)
+def test_default_policy_allows_du_ls_journalctl_diagnostics(full_match, command):
+    gate = _gate(mode="allowlist")
+    decision = gate.evaluate(command, full_match_allow_patterns=full_match)
+    assert decision.allowed is True
+    assert decision.code == "CMD_POLICY_ALLOW"
+
+
+@pytest.mark.parametrize("full_match", [False, True])
+@pytest.mark.parametrize(
+    "command,expected_code",
+    [
+        ("du --files0-from=/etc/shadow", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("du --files0-from /etc/shadow", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("du -X /etc/shadow", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("du -H /var", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("du -D 2", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("ls -R /", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("ls -L /etc", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("ls --quoting-style shell /", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ('ls --format "{{.Names}}"', "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl --file=/var/log/syslog", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl -u x | grep y", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl -b --follow", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl -b -f", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl -b --verify", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl -N 100", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl -u --follow", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl --since --follow", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("fstrim -v /", "CMD_POLICY_NOT_ALLOWLISTED"),
+        ("journalctl --vacuum-size=10M", "CMD_POLICY_DENY_PATTERN"),
+        ("journalctl --rotate", "CMD_POLICY_DENY_PATTERN"),
+        ("journalctl --flush", "CMD_POLICY_DENY_PATTERN"),
+        ("journalctl --smart-relinquish-var", "CMD_POLICY_DENY_PATTERN"),
+        ("journalctl -b --smart-relinquish-var", "CMD_POLICY_DENY_PATTERN"),
+        ("journalctl --since '12 {hours}'", "CMD_POLICY_SHELL_METACHAR"),
+    ],
+)
+def test_default_policy_blocks_unsafe_du_ls_journalctl_and_unlisted(full_match, command, expected_code):
+    gate = _gate(mode="allowlist")
+    decision = gate.evaluate(command, full_match_allow_patterns=full_match)
+    assert decision.allowed is False
+    assert decision.code == expected_code
